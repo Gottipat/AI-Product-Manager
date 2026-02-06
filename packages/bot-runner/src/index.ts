@@ -14,6 +14,7 @@ import 'dotenv/config';
 import pino from 'pino';
 import { BOT_CONFIG } from '@meeting-ai/shared';
 import { BrowserLauncher, BrowserSession } from './browser/index.js';
+import { MeetJoiner, CaptionsController, ParticipantTracker } from './meet/index.js';
 
 const logger = pino({
     name: 'bot-runner',
@@ -40,11 +41,15 @@ export async function main(): Promise<void> {
     });
 
     let session: BrowserSession | null = null;
+    let participantTracker: ParticipantTracker | null = null;
 
     // Graceful shutdown handler
     const shutdown = async (signal: string) => {
         logger.info({ signal }, 'Received shutdown signal');
 
+        if (participantTracker) {
+            participantTracker.stopTracking();
+        }
         if (session) {
             await session.close();
         }
@@ -70,11 +75,39 @@ export async function main(): Promise<void> {
             'Browser session ready'
         );
 
-        // If a meet link is provided, navigate to it (Phase 2 will implement joining)
+        // If a meet link is provided, join the meeting
         if (config.meetLink) {
-            logger.info({ meetLink: config.meetLink }, 'Meet link provided, navigating...');
-            await session.navigateTo(config.meetLink);
-            logger.info('Navigation complete. Join logic will be implemented in Phase 2.');
+            logger.info({ meetLink: config.meetLink }, 'Meet link provided, joining meeting...');
+
+            // Get the page from the session
+            const page = await session.getPage();
+
+            // Create the joiner and attempt to join
+            const joiner = new MeetJoiner(page, {
+                botName: config.botDisplayName,
+            });
+
+            const joinResult = await joiner.join(config.meetLink);
+
+            if (joinResult.success) {
+                logger.info({ state: joinResult.state }, 'Successfully joined meeting!');
+
+                // Enable captions
+                const captionsController = new CaptionsController(page);
+                const captionsEnabled = await captionsController.enable();
+                logger.info({ captionsEnabled }, 'Captions status');
+
+                // Start tracking participants
+                participantTracker = new ParticipantTracker(page, config.botDisplayName);
+                participantTracker.onParticipantEvent((event) => {
+                    logger.info({ event: { type: event.type, participant: event.participant.displayName } }, 'Participant event');
+                });
+                await participantTracker.startTracking();
+
+                logger.info('Bot is now in the meeting with captions enabled. Press Ctrl+C to leave.');
+            } else {
+                logger.warn({ state: joinResult.state, message: joinResult.message }, 'Could not join meeting');
+            }
         } else {
             logger.info('No MEET_LINK provided. Bot is ready and waiting for join commands.');
         }
@@ -91,9 +124,11 @@ export async function main(): Promise<void> {
 
 // Export browser module for external use
 export * from './browser/index.js';
+export * from './meet/index.js';
 
 // Run if this is the entry point
 main().catch((error) => {
     console.error('Fatal error:', error);
     process.exit(1);
 });
+
