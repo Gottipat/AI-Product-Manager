@@ -1,0 +1,44 @@
+# CODEOWNERS - Define code ownership for automatic PR review requests
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ==============================================================================
+# GLOBAL OWNERS
+# These owners will be requested for review on any PR
+# ==============================================================================
+* @your-github-username @friend-github-username
+
+# ==============================================================================
+# SHARED PACKAGE - REQUIRES BOTH REVIEWERS
+# This is the source of truth - changes must be approved by both teams
+# ==============================================================================
+/packages/shared/ @your-github-username @friend-github-username
+
+# ==============================================================================
+# BOT RUNNER - FRIEND'S DOMAIN
+# Primary owner: Friend (Playwright/Chromium bot development)
+# ==============================================================================
+/packages/bot-runner/ @friend-github-username
+
+# ==============================================================================
+# AI BACKEND - YOUR DOMAIN
+# Primary owner: You (AI extraction, MoM, RAG development)
+# ==============================================================================
+/packages/ai-backend/ @your-github-username
+
+# ==============================================================================
+# CI/CD & INFRASTRUCTURE - REQUIRES BOTH REVIEWERS
+# Changes to workflows and configs need both approvals
+# ==============================================================================
+/.github/ @your-github-username @friend-github-username
+/docker-compose.yml @your-github-username @friend-github-username
+/.eslintrc.js @your-github-username @friend-github-username
+/tsconfig.base.json @your-github-username @friend-github-username
+
+# ==============================================================================
+# DOCUMENTATION
+# Anyone can update docs, but ownership reflects primary expertise
+# ==============================================================================
+/docs/BOT_RUNNER_GUIDE.md @friend-github-username
+/docs/AI_BACKEND_GUIDE.md @your-github-username
+/docs/ARCHITECTURE.md @your-github-username @friend-github-username
+/docs/API_CONTRACTS.md @your-github-username @friend-github-username

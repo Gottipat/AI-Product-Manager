@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  ai-backend:
+    build:
+      context: ./packages/ai-backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://meeting_ai:password@postgres:5432/meeting_ai
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./packages/ai-backend/src:/app/src:ro
+    networks:
+      - meeting-ai
+
+  bot-runner:
+    build:
+      context: ./packages/bot-runner
+      dockerfile: Dockerfile
+    environment:
+      - AI_BACKEND_URL=http://ai-backend:3000
+      - BOT_DISPLAY_NAME=Meeting AI Bot
+    depends_on:
+      - ai-backend
+    networks:
+      - meeting-ai
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=meeting_ai
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=meeting_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - meeting-ai
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - meeting-ai
+
+networks:
+  meeting-ai:
+    driver: bridge
+
+volumes:
+  postgres_data:

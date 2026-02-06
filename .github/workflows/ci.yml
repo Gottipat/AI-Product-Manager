@@ -1,0 +1,167 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      shared: ${{ steps.changes.outputs.shared }}
+      bot-runner: ${{ steps.changes.outputs.bot-runner }}
+      ai-backend: ${{ steps.changes.outputs.ai-backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            shared:
+              - 'packages/shared/**'
+            bot-runner:
+              - 'packages/bot-runner/**'
+            ai-backend:
+              - 'packages/ai-backend/**'
+
+  lint-and-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint
+        run: pnpm run lint
+
+      - name: Check formatting
+        run: pnpm run format:check
+
+      - name: TypeScript check
+        run: pnpm run typecheck
+
+  test-shared:
+    needs: [detect-changes, lint-and-format]
+    if: needs.detect-changes.outputs.shared == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter @meeting-ai/shared build
+
+      - name: Test shared
+        run: pnpm --filter @meeting-ai/shared test
+
+  test-bot-runner:
+    needs: [detect-changes, lint-and-format]
+    if: needs.detect-changes.outputs.bot-runner == 'true' || needs.detect-changes.outputs.shared == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter @meeting-ai/shared build
+
+      - name: Build bot-runner
+        run: pnpm --filter @meeting-ai/bot-runner build
+
+      - name: Test bot-runner
+        run: pnpm --filter @meeting-ai/bot-runner test
+
+  test-ai-backend:
+    needs: [detect-changes, lint-and-format]
+    if: needs.detect-changes.outputs.ai-backend == 'true' || needs.detect-changes.outputs.shared == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter @meeting-ai/shared build
+
+      - name: Build ai-backend
+        run: pnpm --filter @meeting-ai/ai-backend build
+
+      - name: Test ai-backend
+        run: pnpm --filter @meeting-ai/ai-backend test
+
+  build-success:
+    needs: [lint-and-format, test-shared, test-bot-runner, test-ai-backend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.lint-and-format.result }}" == "failure" ]]; then
+            exit 1
+          fi
+          if [[ "${{ needs.test-shared.result }}" == "failure" ]]; then
+            exit 1
+          fi
+          if [[ "${{ needs.test-bot-runner.result }}" == "failure" ]]; then
+            exit 1
+          fi
+          if [[ "${{ needs.test-ai-backend.result }}" == "failure" ]]; then
+            exit 1
+          fi
+          echo "All checks passed!"
