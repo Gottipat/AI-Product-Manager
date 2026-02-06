@@ -14,9 +14,9 @@ import { BOT_CONFIG } from '@meeting-ai/shared';
 
 // Placeholder - Friend will implement
 export async function main(): Promise<void> {
-    console.warn('Bot Runner starting...');
-    console.warn(`Bot name: ${BOT_CONFIG.DEFAULT_BOT_NAME}`);
-    console.warn('TODO: Implement Playwright bot logic');
+  console.warn('Bot Runner starting...');
+  console.warn(`Bot name: ${BOT_CONFIG.DEFAULT_BOT_NAME}`);
+  console.warn('TODO: Implement Playwright bot logic');
 }
 
 main().catch(console.error);

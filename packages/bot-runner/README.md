@@ -7,6 +7,7 @@
 ## Overview
 
 This package handles:
+
 - Joining Google Meet sessions via Playwright/Chromium
 - Enabling and capturing live captions
 - Parsing speaker-attributed transcript events

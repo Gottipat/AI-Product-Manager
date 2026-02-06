@@ -14,13 +14,13 @@ import type { TranscriptBatch, MeetingStatus } from '../types/index.js';
  * Stream transcript events from Bot Runner to AI Backend
  */
 export interface StreamTranscriptRequest {
-    batch: TranscriptBatch;
+  batch: TranscriptBatch;
 }
 
 export interface StreamTranscriptResponse {
-    acknowledged: boolean;
-    processedCount: number;
-    errors?: string[];
+  acknowledged: boolean;
+  processedCount: number;
+  errors?: string[];
 }
 
 // ============================================
@@ -32,17 +32,17 @@ export interface StreamTranscriptResponse {
  * Notify backend that bot has joined a meeting
  */
 export interface MeetingStartRequest {
-    meetingId: string;
-    googleMeetLink: string;
-    title: string;
-    startTime: string;
-    isRecurring: boolean;
-    recurringSeriesId?: string;
+  meetingId: string;
+  googleMeetLink: string;
+  title: string;
+  startTime: string;
+  isRecurring: boolean;
+  recurringSeriesId?: string;
 }
 
 export interface MeetingStartResponse {
-    acknowledged: boolean;
-    meetingId: string;
+  acknowledged: boolean;
+  meetingId: string;
 }
 
 /**
@@ -50,15 +50,15 @@ export interface MeetingStartResponse {
  * Notify backend of participant join/leave
  */
 export interface ParticipantUpdateRequest {
-    participantId: string;
-    displayName: string;
-    email?: string;
-    action: 'joined' | 'left';
-    timestamp: string;
+  participantId: string;
+  displayName: string;
+  email?: string;
+  action: 'joined' | 'left';
+  timestamp: string;
 }
 
 export interface ParticipantUpdateResponse {
-    acknowledged: boolean;
+  acknowledged: boolean;
 }
 
 /**
@@ -66,14 +66,14 @@ export interface ParticipantUpdateResponse {
  * Notify backend that meeting has ended
  */
 export interface MeetingEndRequest {
-    endTime: string;
-    totalTranscriptEvents: number;
-    finalStatus: MeetingStatus;
+  endTime: string;
+  totalTranscriptEvents: number;
+  finalStatus: MeetingStatus;
 }
 
 export interface MeetingEndResponse {
-    acknowledged: boolean;
-    processingJobId: string;
+  acknowledged: boolean;
+  processingJobId: string;
 }
 
 // ============================================
@@ -85,16 +85,16 @@ export interface MeetingEndResponse {
  * Request bot to join a meeting
  */
 export interface BotJoinRequest {
-    meetingId: string;
-    googleMeetLink: string;
-    scheduledStartTime?: string;
-    botDisplayName?: string;
+  meetingId: string;
+  googleMeetLink: string;
+  scheduledStartTime?: string;
+  botDisplayName?: string;
 }
 
 export interface BotJoinResponse {
-    success: boolean;
-    botSessionId: string;
-    error?: string;
+  success: boolean;
+  botSessionId: string;
+  error?: string;
 }
 
 /**
@@ -102,11 +102,11 @@ export interface BotJoinResponse {
  * Request bot to leave a meeting
  */
 export interface BotLeaveRequest {
-    reason: 'manual' | 'meeting-ended' | 'error';
+  reason: 'manual' | 'meeting-ended' | 'error';
 }
 
 export interface BotLeaveResponse {
-    success: boolean;
+  success: boolean;
 }
 
 // ============================================
@@ -114,14 +114,14 @@ export interface BotLeaveResponse {
 // ============================================
 
 export interface HealthCheckResponse {
-    status: 'healthy' | 'degraded' | 'unhealthy';
-    version: string;
-    timestamp: string;
-    services: {
-        name: string;
-        status: 'up' | 'down';
-        latencyMs?: number;
-    }[];
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  version: string;
+  timestamp: string;
+  services: {
+    name: string;
+    status: 'up' | 'down';
+    latencyMs?: number;
+  }[];
 }
 
 // ============================================
@@ -129,17 +129,17 @@ export interface HealthCheckResponse {
 // ============================================
 
 export const API_ENDPOINTS = {
-    // Bot Runner → AI Backend
-    STREAM_TRANSCRIPT: '/api/v1/stream/transcript',
-    MEETING_START: '/api/v1/meetings/start',
-    MEETING_END: '/api/v1/meetings/:meetingId/end',
-    PARTICIPANT_UPDATE: '/api/v1/meetings/:meetingId/participant',
+  // Bot Runner → AI Backend
+  STREAM_TRANSCRIPT: '/api/v1/stream/transcript',
+  MEETING_START: '/api/v1/meetings/start',
+  MEETING_END: '/api/v1/meetings/:meetingId/end',
+  PARTICIPANT_UPDATE: '/api/v1/meetings/:meetingId/participant',
 
-    // AI Backend → Bot Runner
-    BOT_JOIN: '/api/v1/bot/join',
-    BOT_LEAVE: '/api/v1/bot/:sessionId/leave',
-    BOT_STATUS: '/api/v1/bot/:sessionId/status',
+  // AI Backend → Bot Runner
+  BOT_JOIN: '/api/v1/bot/join',
+  BOT_LEAVE: '/api/v1/bot/:sessionId/leave',
+  BOT_STATUS: '/api/v1/bot/:sessionId/status',
 
-    // Common
-    HEALTH: '/api/v1/health',
+  // Common
+  HEALTH: '/api/v1/health',
 } as const;

@@ -35,6 +35,6 @@ assignees: ''
 
 ## Acceptance Criteria
 
-- [ ] 
-- [ ] 
-- [ ] 
+- [ ]
+- [ ]
+- [ ]
