@@ -2,15 +2,43 @@ name: CI Pipeline
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
   push:
-    branches: [main, develop]
+    branches: [dev]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Enforce branching strategy: feature/* → dev → main
+  check-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch naming
+        if: github.event_name == 'pull_request'
+        run: |
+          SOURCE="${{ github.head_ref }}"
+          TARGET="${{ github.base_ref }}"
+          
+          echo "Source: $SOURCE → Target: $TARGET"
+          
+          # Block direct PRs to main (must come from dev)
+          if [[ "$TARGET" == "main" && "$SOURCE" != "dev" ]]; then
+            echo "❌ ERROR: Direct PRs to main are not allowed!"
+            echo "Please merge to dev first, then create a PR from dev to main."
+            exit 1
+          fi
+          
+          # PRs to dev must come from feature/* or fix/* branches
+          if [[ "$TARGET" == "dev" ]]; then
+            if [[ ! "$SOURCE" =~ ^(feature|fix|hotfix|chore|docs)/ ]]; then
+              echo "⚠️ WARNING: Branch name should follow pattern: feature/*, fix/*, hotfix/*, chore/*, docs/*"
+            fi
+          fi
+          
+          echo "✅ Branch strategy check passed"
+
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -31,6 +59,7 @@ jobs:
               - 'packages/ai-backend/**'
 
   lint-and-format:
+    needs: check-branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -146,22 +175,30 @@ jobs:
         run: pnpm --filter @meeting-ai/ai-backend test
 
   build-success:
-    needs: [lint-and-format, test-shared, test-bot-runner, test-ai-backend]
+    needs: [check-branch, lint-and-format, test-shared, test-bot-runner, test-ai-backend]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs
         run: |
+          if [[ "${{ needs.check-branch.result }}" == "failure" ]]; then
+            echo "Branch check failed"
+            exit 1
+          fi
           if [[ "${{ needs.lint-and-format.result }}" == "failure" ]]; then
+            echo "Lint/format failed"
             exit 1
           fi
           if [[ "${{ needs.test-shared.result }}" == "failure" ]]; then
+            echo "Shared tests failed"
             exit 1
           fi
           if [[ "${{ needs.test-bot-runner.result }}" == "failure" ]]; then
+            echo "Bot runner tests failed"
             exit 1
           fi
           if [[ "${{ needs.test-ai-backend.result }}" == "failure" ]]; then
+            echo "AI backend tests failed"
             exit 1
           fi
-          echo "All checks passed!"
+          echo "✅ All checks passed!"
