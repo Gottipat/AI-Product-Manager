@@ -1,12 +1,1 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-echo "🔍 Running pre-push validation..."
 pnpm run pre-push
-
-if [ $? -ne 0 ]; then
-  echo "❌ Pre-push validation failed! Please fix the issues above before pushing."
-  exit 1
-fi
-
-echo "✅ Pre-push validation passed!"

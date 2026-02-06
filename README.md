@@ -95,10 +95,22 @@ AI-Product-Manager/
 │   ├── shared/           # Shared types & contracts
 │   ├── bot-runner/       # Playwright bot
 │   └── ai-backend/       # AI processing server
-├── docs/                 # Documentation
+├── docs/                 # Documentation (see docs/README.md)
 ├── .github/              # GitHub workflows
 └── scripts/              # Utility scripts
 ```
+
+## 📚 Documentation
+
+**[📖 View Full Documentation →](docs/README.md)**
+
+| Doc                                   | Purpose              |
+| ------------------------------------- | -------------------- |
+| [Architecture](docs/ARCHITECTURE.md)  | System design        |
+| [Database](docs/database/OVERVIEW.md) | Schema & migrations  |
+| [Testing](docs/TESTING.md)            | Test conventions     |
+| [Tooling](docs/TOOLING.md)            | Git hooks, linting   |
+| [Contributing](docs/CONTRIBUTING.md)  | Branch strategy, PRs |
 
 ## Contributing
 
