@@ -30,10 +30,10 @@ jobs:
             exit 1
           fi
           
-          # PRs to dev must come from feature/* or fix/* branches
+          # PRs to dev must come from feature/* or fix/* or feat/* branches
           if [[ "$TARGET" == "dev" ]]; then
-            if [[ ! "$SOURCE" =~ ^(feature|fix|hotfix|chore|docs)/ ]]; then
-              echo "⚠️ WARNING: Branch name should follow pattern: feature/*, fix/*, hotfix/*, chore/*, docs/*"
+            if [[ ! "$SOURCE" =~ ^(feat|feature|fix|hotfix|chore|docs)/ ]]; then
+              echo "⚠️ WARNING: Branch name should follow pattern: feat/*, feature/*, fix/*, hotfix/*, chore/*, docs/*"
             fi
           fi
           
