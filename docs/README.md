@@ -52,6 +52,11 @@ pnpm dev
 - [database/TROUBLESHOOTING.md](./database/TROUBLESHOOTING.md) - Common issues and fixes
 - [database/RUNBOOK.md](./database/RUNBOOK.md) - Operations procedures, backup, recovery
 
+### AI Pipeline
+
+- [AI_PIPELINE.md](./AI_PIPELINE.md) - OpenAI integration, MoM generation, RAG search
+- [ENVIRONMENT.md](./ENVIRONMENT.md) - Environment variables and configuration
+
 ### Development
 
 - [TESTING.md](./TESTING.md) - Test framework, conventions, coverage requirements
