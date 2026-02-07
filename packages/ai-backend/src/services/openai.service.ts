@@ -109,7 +109,15 @@ export class OpenAIService {
         {
           role: 'system',
           content: `You are an expert meeting analyst. Generate a concise executive summary from the meeting transcript. 
-Focus on the key outcomes and decisions. Be professional and objective.`,
+Focus on the key outcomes and decisions. Be professional and objective.
+
+Return your response as JSON with this exact structure:
+{
+  "summary": "2-3 sentence executive summary",
+  "mainTopics": ["topic1", "topic2"],
+  "sentiment": "positive" | "neutral" | "negative" | "mixed",
+  "participantCount": number (optional)
+}`,
         },
         {
           role: 'user',
@@ -137,7 +145,20 @@ Focus on the key outcomes and decisions. Be professional and objective.`,
           role: 'system',
           content: `You are an expert meeting analyst. Extract key highlights from the transcript.
 Include: key points, notable quotes, outcomes, concerns, and opportunities.
-Rate importance from 1-10. Extract relevant keywords for search.`,
+Rate importance from 1-10. Extract relevant keywords for search.
+
+Return your response as JSON with this exact structure:
+{
+  "highlights": [
+    {
+      "highlightType": "executive_summary" | "key_point" | "notable_quote" | "outcome",
+      "content": "the highlight text",
+      "speaker": "speaker name (optional)",
+      "importance": 1-10,
+      "keywords": ["keyword1", "keyword2"]
+    }
+  ]
+}`,
         },
         {
           role: 'user',
@@ -167,7 +188,23 @@ Rate importance from 1-10. Extract relevant keywords for search.`,
           content: `You are an expert meeting analyst. Extract all actionable items from the transcript.
 Look for: action items, decisions, blockers, risks, questions, concerns, next steps, 
 follow-ups, dependencies, milestones, requirements, assumptions, constraints, and feedback.
-Include assignees and due dates when mentioned. Extract the source quote if available.`,
+Include assignees and due dates when mentioned. Extract the source quote if available.
+
+Return your response as JSON with this exact structure:
+{
+  "items": [
+    {
+      "itemType": "action_item" | "decision" | "announcement" | "project_update" | "blocker" | "idea" | "question" | "risk" | "commitment" | "deadline" | "dependency" | "parking_lot" | "key_takeaway" | "reference",
+      "title": "short title max 200 chars",
+      "description": "detailed description (optional)",
+      "assignee": "person name (optional)",
+      "assigneeEmail": "email (optional)",
+      "dueDate": "YYYY-MM-DD (optional)",
+      "priority": "low" | "medium" | "high" | "critical",
+      "sourceQuote": "direct quote (optional)"
+    }
+  ]
+}`,
         },
         {
           role: 'user',
@@ -205,7 +242,7 @@ Generate:
 6. Suggested topics for next meeting
 
 Be thorough but concise. Rate highlight importance 1-10.
-Extract all actionable items including decisions, blockers, and risks.`,
+Extract all actionable items including decisions, blockers, and risks. Return your response as JSON.`,
         },
         {
           role: 'user',
