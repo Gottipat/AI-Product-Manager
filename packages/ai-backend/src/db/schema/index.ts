@@ -20,3 +20,6 @@ export * from './mom.js';
 
 // Meeting items (action items, decisions, etc.)
 export * from './meetingItems.js';
+
+// Embeddings (for RAG/semantic search)
+export * from './embeddings.js';
