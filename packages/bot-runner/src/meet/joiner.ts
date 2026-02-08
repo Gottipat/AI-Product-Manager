@@ -82,38 +82,89 @@ export class MeetJoiner {
     async join(meetLink: string): Promise<JoinResult> {
         logger.info({ meetLink, botName: this.options.botName }, 'Starting join flow');
 
-        try {
-            // Navigate to the meeting
-            await this.page.goto(meetLink, { waitUntil: 'domcontentloaded' });
-            logger.info('Navigated to meeting page');
+        // Retry up to 3 times with page reload
+        const maxRetries = 3;
 
-            // Wait for page to load and handle any initial dialogs
-            await this.dismissDialogs();
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                // Navigate to the meeting with full page load
+                // Use 'load' instead of 'domcontentloaded' to wait for more resources
+                await this.page.goto(meetLink, {
+                    waitUntil: 'load',
+                    timeout: 30000
+                });
+                logger.info({ attempt }, 'Navigated to meeting page');
 
-            // Turn off camera and microphone before joining
-            await this.muteMediaDevices();
+                // Wait for network to settle - Meet loads resources progressively
+                await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {
+                    logger.debug('Network did not fully idle, continuing anyway');
+                });
 
-            // Enter bot name
-            await this.enterName();
+                // Additional wait for Meet UI to initialize
+                await this.page.waitForTimeout(2000);
 
-            // Click join button
-            await this.clickJoinButton();
+                // Wait for page to load and handle any initial dialogs
+                await this.dismissDialogs();
 
-            // Wait for admission or timeout
-            return await this.waitForAdmission();
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown join error';
-            logger.error({ error }, 'Join flow failed');
+                // Turn off camera and microphone before joining
+                await this.muteMediaDevices();
 
-            // Capture debug info on failure
-            await this.logPageDebugInfo();
+                // Enter bot name
+                await this.enterName();
 
-            return {
-                success: false,
-                state: 'error',
-                message,
-            };
+                // Click join button
+                await this.clickJoinButton();
+
+                // Wait for admission or timeout
+                const result = await this.waitForAdmission();
+
+                // If successful or explicitly denied, return immediately
+                if (result.success || result.state === 'denied' || result.state === 'ended') {
+                    return result;
+                }
+
+                // If error/waiting, we might retry
+                if (attempt < maxRetries) {
+                    logger.warn({ attempt, state: result.state }, 'Join attempt failed, will retry with page reload');
+                    // Reload the page for next attempt
+                    await this.page.reload({ waitUntil: 'load', timeout: 30000 });
+                    await this.page.waitForTimeout(2000);
+                } else {
+                    return result;
+                }
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Unknown join error';
+                logger.error({ error, attempt }, 'Join flow failed');
+
+                // Capture debug info on failure
+                await this.logPageDebugInfo();
+
+                // If we have retries left, reload and try again
+                if (attempt < maxRetries) {
+                    logger.info({ attempt }, 'Reloading page for retry...');
+                    try {
+                        await this.page.reload({ waitUntil: 'load', timeout: 30000 });
+                        await this.page.waitForTimeout(2000);
+                    } catch (reloadError) {
+                        logger.error({ reloadError }, 'Failed to reload page');
+                    }
+                    continue;
+                }
+
+                return {
+                    success: false,
+                    state: 'error',
+                    message,
+                };
+            }
         }
+
+        // Should not reach here, but just in case
+        return {
+            success: false,
+            state: 'error',
+            message: 'Max retries exceeded',
+        };
     }
 
     private async logPageDebugInfo(): Promise<void> {

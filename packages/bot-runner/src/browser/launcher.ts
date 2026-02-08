@@ -50,24 +50,29 @@ export class BrowserLauncher {
             headless: this.options.headless ?? false,
             ignoreDefaultArgs: ['--enable-automation'],
             args: [
+                // === CLEAN STATE (incognito-like) ===
+                '--disable-extensions',
+                '--disable-sync',
+                '--disable-background-networking',
+                '--disable-translate',
+                '--disable-infobars',
+                // === AUTOMATION HIDING ===
                 '--disable-blink-features=AutomationControlled',
-                '--exclude-switches=enable-automation',
+                // === SANDBOX SETTINGS ===
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--disable-gpu',
-                // Permissions for microphone/camera (even if we don't use them, Meet checks)
+                // === MEDIA PERMISSIONS ===
                 '--use-fake-ui-for-media-stream',
                 '--use-fake-device-for-media-stream',
                 ...(this.options.args ?? []),
             ],
-            channel: 'chrome', // Use real Chrome browser if available
         };
 
         this.browser = await chromium.launch(launchOptions);
 
-        // Create browser context with viewport and user agent
+        // Create a completely fresh browser context (like incognito)
+        // This ensures no cookies, localStorage, or session data from previous runs
         this.context = await this.browser.newContext({
             viewport: {
                 width: BOT_CONFIG.VIEWPORT.width,
@@ -78,6 +83,10 @@ export class BrowserLauncher {
             permissions: ['microphone', 'camera'],
             // Ignore HTTPS errors (useful for local development)
             ignoreHTTPSErrors: true,
+            // Set locale for consistent behavior
+            locale: 'en-US',
+            // Disable color scheme preference to avoid dark mode issues
+            colorScheme: 'light',
         });
 
         // Stealth: Hide webdriver property
