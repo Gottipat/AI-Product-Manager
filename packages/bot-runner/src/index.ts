@@ -173,6 +173,15 @@ export async function main(): Promise<void> {
                 logger.info('Press Ctrl+C to leave and see final stats.');
             } else {
                 logger.warn({ state: joinResult.state, message: joinResult.message }, 'Could not join meeting');
+
+                // Clean up and exit since we failed to join
+                logger.info('Cleaning up browser after failed join...');
+                if (session) {
+                    await session.close();
+                }
+                await launcher.close();
+                logger.info('Exiting due to failed join. Please check the meeting link and try again.');
+                process.exit(1);
             }
         } else {
             logger.info('No MEET_LINK provided. Bot is ready and waiting for join commands.');

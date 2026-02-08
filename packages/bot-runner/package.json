@@ -7,12 +7,13 @@
     "types": "./dist/index.d.ts",
     "scripts": {
         "build": "tsc",
+        "predev": "pkill -f 'tsx.*bot-runner' 2>/dev/null; pkill -f 'Chrome for Testing' 2>/dev/null; exit 0",
         "dev": "tsx watch src/index.ts",
         "start": "node dist/index.js",
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "clean": "rm -rf dist"
+        "clean": "rm -rf dist; pkill -f 'Chrome for Testing' 2>/dev/null; exit 0"
     },
     "dependencies": {
         "@meeting-ai/shared": "workspace:*",

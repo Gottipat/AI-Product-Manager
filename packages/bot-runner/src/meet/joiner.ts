@@ -16,12 +16,8 @@ const logger = pino({ name: 'meet-joiner' });
 const SELECTORS = {
     // Pre-join screen
     nameInput: 'input[aria-label="Your name"]',
-    askToJoinButton: 'button[jsname="Qx7uuf"]',
-    joinNowButton: '[data-idom-class*="join"]',
-
-    // Alternative selectors for different Meet states
-    joinButtonAlt: 'button:has-text("Ask to join")',
-    joinButtonAlt2: 'button:has-text("Join now")',
+    askToJoinButton: 'button:has-text("Ask to join")',
+    joinNowButton: 'button:has-text("Join now")',
 
     // Waiting/lobby states
     waitingMessage: 'text=Asking to be let in',
@@ -37,8 +33,9 @@ const SELECTORS = {
     cannotJoin: 'text=You can\'t join this video call',
     removed: 'text=You\'ve been removed',
 
-    // Dismiss dialogs
-    gotItButton: 'button:has-text("Got it")',
+    // Dialogs to dismiss (based on browser research)
+    signInPopupGotIt: 'button:has-text("Got it")',
+    permissionModalDismiss: 'button:has-text("Continue without microphone and camera")',
     dismissButton: 'button:has-text("Dismiss")',
 } as const;
 
@@ -82,26 +79,47 @@ export class MeetJoiner {
     async join(meetLink: string): Promise<JoinResult> {
         logger.info({ meetLink, botName: this.options.botName }, 'Starting join flow');
 
-        // Retry up to 3 times with page reload
+        // Retry up to 3 times with page reload (simulates manual F5)
         const maxRetries = 3;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                // Navigate to the meeting with full page load
-                // Use 'load' instead of 'domcontentloaded' to wait for more resources
-                await this.page.goto(meetLink, {
-                    waitUntil: 'load',
-                    timeout: 30000
-                });
-                logger.info({ attempt }, 'Navigated to meeting page');
+                if (attempt === 1) {
+                    // First attempt: Navigate to the meeting URL
+                    await this.page.goto(meetLink, {
+                        waitUntil: 'load',
+                        timeout: 30000
+                    });
+                    logger.info({ attempt }, 'Navigated to meeting page');
+                } else {
+                    // Subsequent attempts: Use F5-style reload (not about:blank navigation)
+                    // This preserves the browser context and cache that manual F5 uses
+                    logger.info({ attempt }, 'Reloading page (simulating F5)...');
+                    await this.page.reload({
+                        waitUntil: 'load',
+                        timeout: 30000
+                    });
+                    logger.info({ attempt }, 'Page reloaded');
+                }
 
                 // Wait for network to settle - Meet loads resources progressively
-                await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {
+                await this.page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {
                     logger.debug('Network did not fully idle, continuing anyway');
                 });
 
-                // Additional wait for Meet UI to initialize
-                await this.page.waitForTimeout(2000);
+                // Wait for Meet UI to initialize
+                // First attempt needs more time since it's cold loading
+                // Subsequent attempts are faster due to cached resources
+                await this.page.waitForTimeout(attempt === 1 ? 4000 : 3000);
+
+                // Check for "can't join" error before proceeding
+                const cantJoinError = await this.page.locator('text=You can\'t join this video call').isVisible({ timeout: 2000 }).catch(() => false);
+                if (cantJoinError) {
+                    logger.warn({ attempt }, 'Detected "can\'t join" error, will retry with reload');
+                    if (attempt < maxRetries) {
+                        continue; // Go to next attempt with reload
+                    }
+                }
 
                 // Wait for page to load and handle any initial dialogs
                 await this.dismissDialogs();
@@ -125,12 +143,7 @@ export class MeetJoiner {
 
                 // If error/waiting, we might retry
                 if (attempt < maxRetries) {
-                    logger.warn({ attempt, state: result.state }, 'Join attempt failed, will retry with page reload');
-                    // Reload the page for next attempt
-                    await this.page.reload({ waitUntil: 'load', timeout: 30000 });
-                    await this.page.waitForTimeout(2000);
-                } else {
-                    return result;
+                    logger.warn({ attempt, state: result.state }, 'Join attempt failed, will retry');
                 }
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'Unknown join error';
@@ -139,23 +152,14 @@ export class MeetJoiner {
                 // Capture debug info on failure
                 await this.logPageDebugInfo();
 
-                // If we have retries left, reload and try again
-                if (attempt < maxRetries) {
-                    logger.info({ attempt }, 'Reloading page for retry...');
-                    try {
-                        await this.page.reload({ waitUntil: 'load', timeout: 30000 });
-                        await this.page.waitForTimeout(2000);
-                    } catch (reloadError) {
-                        logger.error({ reloadError }, 'Failed to reload page');
-                    }
-                    continue;
+                if (attempt >= maxRetries) {
+                    return {
+                        success: false,
+                        state: 'error',
+                        message,
+                    };
                 }
-
-                return {
-                    success: false,
-                    state: 'error',
-                    message,
-                };
+                // Continue to next attempt (will navigate away first)
             }
         }
 
@@ -183,19 +187,30 @@ export class MeetJoiner {
 
     /**
      * Dismiss any popup dialogs that might appear
+     * Based on browser research: sign-in popup (top-right) and permission modal
      */
     private async dismissDialogs(): Promise<void> {
         try {
             // Wait a bit for dialogs to appear
-            await this.page.waitForTimeout(2000);
+            await this.page.waitForTimeout(1500);
 
-            // Try to dismiss common dialogs
-            const gotItButton = this.page.locator(SELECTORS.gotItButton).first();
-            if (await gotItButton.isVisible({ timeout: 1000 }).catch(() => false)) {
-                await gotItButton.click();
-                logger.debug('Dismissed "Got it" dialog');
+            // 1. Dismiss sign-in popup ("Got it" button in top-right corner)
+            const signInPopup = this.page.locator(SELECTORS.signInPopupGotIt).first();
+            if (await signInPopup.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await signInPopup.click();
+                logger.info('Dismissed sign-in popup (Got it)');
+                await this.page.waitForTimeout(500);
             }
 
+            // 2. Dismiss permission modal ("Continue without microphone and camera")
+            const permissionModal = this.page.locator(SELECTORS.permissionModalDismiss).first();
+            if (await permissionModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await permissionModal.click();
+                logger.info('Dismissed permission modal');
+                await this.page.waitForTimeout(500);
+            }
+
+            // 3. Try generic dismiss button if present
             const dismissButton = this.page.locator(SELECTORS.dismissButton).first();
             if (await dismissButton.isVisible({ timeout: 1000 }).catch(() => false)) {
                 await dismissButton.click();
@@ -203,6 +218,7 @@ export class MeetJoiner {
             }
         } catch {
             // Dialogs are optional, ignore errors
+            logger.debug('No dialogs to dismiss or error dismissing');
         }
     }
 
@@ -261,35 +277,46 @@ export class MeetJoiner {
 
     /**
      * Click the join/ask to join button
+     * IMPORTANT: Button is DISABLED until name is entered!
      */
     private async clickJoinButton(): Promise<void> {
         logger.debug('Looking for join button');
 
-        // Try multiple selectors as Meet UI can vary
+        // Primary selectors in order of preference
         const joinSelectors = [
-            // Standard "Ask to join" button
-            'button:has-text("Ask to join")',
-            // Standard "Join now" button (for open meetings)
-            'button:has-text("Join now")',
-            // Icon-based join button (sometimes used in new UI)
-            'button[jsname="Qx7uuf"]',
-            // Generic join button class
-            '[data-idom-class*="join"]',
-            // Fallback for any button containing "Join"
-            'button:has-text("Join")',
+            SELECTORS.askToJoinButton,  // 'button:has-text("Ask to join")'
+            SELECTORS.joinNowButton,    // 'button:has-text("Join now")'
         ];
 
         for (const selector of joinSelectors) {
             try {
-                // Wait briefly for each selector
                 const button = this.page.locator(selector).first();
-                if (await button.isVisible({ timeout: 1000 }).catch(() => false)) {
-                    logger.info({ selector }, 'Found join button, clicking...');
-                    await button.click();
+
+                // Check if button exists and is visible
+                if (await button.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    // CRITICAL: Wait for button to be ENABLED (not disabled)
+                    // The button starts disabled and only enables after name is entered
+                    logger.debug({ selector }, 'Found join button, waiting for it to be enabled...');
+
+                    // Wait up to 5 seconds for the button to become enabled
+                    const startWait = Date.now();
+                    while (Date.now() - startWait < 5000) {
+                        const isDisabled = await button.isDisabled().catch(() => true);
+                        if (!isDisabled) {
+                            logger.info({ selector }, 'Join button is enabled, clicking...');
+                            await button.click();
+                            return;
+                        }
+                        await this.page.waitForTimeout(300);
+                    }
+
+                    // If still disabled after 5s, try clicking anyway
+                    logger.warn({ selector }, 'Button still appears disabled, attempting click anyway...');
+                    await button.click({ force: true });
                     return;
                 }
-            } catch {
-                // Try next selector
+            } catch (error) {
+                logger.debug({ selector, error }, 'Selector failed, trying next');
             }
         }
 
