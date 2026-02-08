@@ -48,8 +48,10 @@ export class BrowserLauncher {
 
         const launchOptions: LaunchOptions = {
             headless: this.options.headless ?? false,
+            ignoreDefaultArgs: ['--enable-automation'],
             args: [
                 '--disable-blink-features=AutomationControlled',
+                '--exclude-switches=enable-automation',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
@@ -60,6 +62,7 @@ export class BrowserLauncher {
                 '--use-fake-device-for-media-stream',
                 ...(this.options.args ?? []),
             ],
+            channel: 'chrome', // Use real Chrome browser if available
         };
 
         this.browser = await chromium.launch(launchOptions);
@@ -75,6 +78,13 @@ export class BrowserLauncher {
             permissions: ['microphone', 'camera'],
             // Ignore HTTPS errors (useful for local development)
             ignoreHTTPSErrors: true,
+        });
+
+        // Stealth: Hide webdriver property
+        await this.context.addInitScript(() => {
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined,
+            });
         });
 
         logger.info(

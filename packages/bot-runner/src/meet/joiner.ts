@@ -104,11 +104,29 @@ export class MeetJoiner {
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown join error';
             logger.error({ error }, 'Join flow failed');
+
+            // Capture debug info on failure
+            await this.logPageDebugInfo();
+
             return {
                 success: false,
                 state: 'error',
                 message,
             };
+        }
+    }
+
+    private async logPageDebugInfo(): Promise<void> {
+        try {
+            const title = await this.page.title();
+            const url = this.page.url();
+            // Get a snippet of the body text safely
+            const bodyText = await this.page.evaluate(() => {
+                return document.body ? document.body.innerText.substring(0, 500) : 'No body content';
+            });
+            logger.error({ title, url, bodyText }, 'Debug: Page state at failure');
+        } catch (e) {
+            logger.error('Failed to capture debug info');
         }
     }
 
@@ -198,18 +216,25 @@ export class MeetJoiner {
 
         // Try multiple selectors as Meet UI can vary
         const joinSelectors = [
-            SELECTORS.askToJoinButton,
-            SELECTORS.joinButtonAlt,
-            SELECTORS.joinButtonAlt2,
-            SELECTORS.joinNowButton,
+            // Standard "Ask to join" button
+            'button:has-text("Ask to join")',
+            // Standard "Join now" button (for open meetings)
+            'button:has-text("Join now")',
+            // Icon-based join button (sometimes used in new UI)
+            'button[jsname="Qx7uuf"]',
+            // Generic join button class
+            '[data-idom-class*="join"]',
+            // Fallback for any button containing "Join"
+            'button:has-text("Join")',
         ];
 
         for (const selector of joinSelectors) {
             try {
+                // Wait briefly for each selector
                 const button = this.page.locator(selector).first();
-                if (await button.isVisible({ timeout: 2000 }).catch(() => false)) {
+                if (await button.isVisible({ timeout: 1000 }).catch(() => false)) {
+                    logger.info({ selector }, 'Found join button, clicking...');
                     await button.click();
-                    logger.info({ selector }, 'Clicked join button');
                     return;
                 }
             } catch {
