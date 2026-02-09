@@ -5,7 +5,7 @@
 
 import { pgTable, uuid, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
 
-import { meetings } from './meetings.js';
+import { meetings } from './meetings';
 
 // Note: pgvector extension must be enabled in PostgreSQL
 // CREATE EXTENSION IF NOT EXISTS vector;

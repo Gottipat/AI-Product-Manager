@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { meetings, participants, recurringSeries } from './meetings.js';
+import { meetings, participants, recurringSeries } from './meetings';
 
 describe('Meeting Tables', () => {
   describe('meetings table', () => {

@@ -6,8 +6,8 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
 
-import { meetingStatusEnum, meetingTypeEnum } from './enums.js';
-import { organizations, projects } from './organizations.js';
+import { meetingStatusEnum, meetingTypeEnum } from './enums';
+import { organizations, projects } from './organizations';
 
 // Recurring meeting series
 export const recurringSeries = pgTable('recurring_series', {

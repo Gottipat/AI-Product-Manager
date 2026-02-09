@@ -49,8 +49,11 @@ export const projects = pgTable('projects', {
     .notNull()
     .references(() => organizations.id),
   teamId: uuid('team_id').references(() => teams.id),
+  createdBy: uuid('created_by'), // User who created the project
   name: text('name').notNull(),
   description: text('description'),
+  googleMeetLink: text('google_meet_link'), // Associated meeting link
+  isRecurring: boolean('is_recurring').default(false).notNull(), // Recurring meeting flag
   status: text('status').default('active'), // 'active', 'completed', 'archived'
   startDate: timestamp('start_date'),
   endDate: timestamp('end_date'),

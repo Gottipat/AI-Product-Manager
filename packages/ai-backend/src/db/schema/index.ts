@@ -4,22 +4,25 @@
  */
 
 // Enums
-export * from './enums.js';
+export * from './enums';
 
 // Organization hierarchy
-export * from './organizations.js';
+export * from './organizations';
 
 // Meetings
-export * from './meetings.js';
+export * from './meetings';
 
 // Transcripts
-export * from './transcripts.js';
+export * from './transcripts';
 
 // Minutes of Meeting
-export * from './mom.js';
+export * from './mom';
 
 // Meeting items (action items, decisions, etc.)
-export * from './meetingItems.js';
+export * from './meetingItems';
 
 // Embeddings (for RAG/semantic search)
-export * from './embeddings.js';
+export * from './embeddings';
+
+// Users
+export * from './users';

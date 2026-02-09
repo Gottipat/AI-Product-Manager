@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { organizations, teams, teamMembers, projects } from './organizations.js';
+import { organizations, teams, teamMembers, projects } from './organizations';
 
 describe('Organization Tables', () => {
   describe('organizations table', () => {

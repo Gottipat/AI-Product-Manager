@@ -10,7 +10,70 @@ http://localhost:3000/api/v1
 
 ## Authentication
 
-> **TODO**: Authentication will be added in a future sprint.
+### POST /auth/signup
+
+Create a new user account.
+
+**Request:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "secure-password",
+  "displayName": "John Doe",
+  "organizationId": "optional-uuid"
+}
+```
+
+**Response:** `201 Created` (Set-Cookie: auth_token)
+
+```json
+{
+  "success": true,
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "displayName": "John Doe",
+    "role": "member"
+  }
+}
+```
+
+---
+
+### POST /auth/signin
+
+Login with email and password.
+
+**Request:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "secure-password"
+}
+```
+
+**Response:** `200 OK` (Set-Cookie: auth_token)
+
+```json
+{
+  "success": true,
+  "user": { ... }
+}
+```
+
+---
+
+### POST /auth/logout
+
+Clear authentication cookie.
+
+---
+
+### GET /auth/me
+
+Get current authenticated user profile.
 
 ---
 
@@ -28,6 +91,90 @@ Check service status.
   "version": "0.0.1",
   "timestamp": "2024-01-15T10:30:00Z",
   "services": ["database", "meetings", "transcripts", "mom", "items"]
+}
+```
+
+---
+
+---
+
+## Projects
+
+### GET /projects
+
+List user's projects with meeting and task counts.
+
+**Response:**
+
+```json
+{
+  "projects": [
+    {
+      "id": "uuid",
+      "name": "Sprint Planning",
+      "googleMeetLink": "https://meet.google.com/abc-defg-hij",
+      "meetingCount": 5,
+      "taskCount": 12
+    }
+  ]
+}
+```
+
+---
+
+### POST /projects
+
+Create a new project.
+
+**Request:**
+
+```json
+{
+  "name": "Daily Standup",
+  "googleMeetLink": "https://meet.google.com/abc-defg-hij",
+  "isRecurring": true
+}
+```
+
+---
+
+### GET /projects/:id
+
+Get project details with associated meetings and aggregated tasks.
+
+**Response:**
+
+```json
+{
+  "project": { ... },
+  "meetings": [ ... ],
+  "items": [ ... ],
+  "stats": {
+    "totalMeetings": 10,
+    "totalItems": 25,
+    "pendingItems": 5,
+    "completedItems": 20
+  }
+}
+```
+
+---
+
+### PATCH /projects/:id
+
+Update project details.
+
+---
+
+### POST /projects/:id/link
+
+Add or update the Google Meet link for a project.
+
+**Request:**
+
+```json
+{
+  "googleMeetLink": "https://meet.google.com/abc-defg-hij"
 }
 ```
 

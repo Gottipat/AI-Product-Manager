@@ -12,7 +12,7 @@ import {
   priorityEnum,
   itemStatusEnum,
   highlightTypeEnum,
-} from './enums.js';
+} from './enums';
 
 describe('Database Enums', () => {
   describe('meetingStatusEnum', () => {

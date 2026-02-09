@@ -6,10 +6,10 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, text, timestamp, date, integer, real, jsonb } from 'drizzle-orm/pg-core';
 
-import { meetingItemTypeEnum, priorityEnum, itemStatusEnum } from './enums.js';
-import { meetings } from './meetings.js';
-import { moms } from './mom.js';
-import { projects } from './organizations.js';
+import { meetingItemTypeEnum, priorityEnum, itemStatusEnum } from './enums';
+import { meetings } from './meetings';
+import { moms } from './mom';
+import { projects } from './organizations';
 
 // Unified meeting items table
 export const meetingItems = pgTable('meeting_items', {

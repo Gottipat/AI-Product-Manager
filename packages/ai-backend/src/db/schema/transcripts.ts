@@ -6,7 +6,7 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, text, timestamp, boolean, integer, real } from 'drizzle-orm/pg-core';
 
-import { meetings } from './meetings.js';
+import { meetings } from './meetings';
 
 // Transcript events (raw captions with speaker attribution)
 export const transcriptEvents = pgTable('transcript_events', {

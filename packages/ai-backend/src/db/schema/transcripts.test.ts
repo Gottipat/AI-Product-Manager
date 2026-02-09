@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { transcriptEvents } from './transcripts.js';
+import { transcriptEvents } from './transcripts';
 
 describe('Transcript Tables', () => {
   describe('transcriptEvents table', () => {

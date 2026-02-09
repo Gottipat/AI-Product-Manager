@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { moms, meetingHighlights } from './mom.js';
+import { moms, meetingHighlights } from './mom';
 
 describe('MoM Tables', () => {
   describe('moms table', () => {
