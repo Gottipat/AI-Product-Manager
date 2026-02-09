@@ -6,6 +6,13 @@
 import { Page } from 'playwright';
 import { BOT_CONFIG, MEETING_CONFIG } from '@meeting-ai/shared';
 import pino from 'pino';
+import {
+    humanType,
+    humanClick,
+    randomDelay,
+    mediumDelay,
+    simulateReading,
+} from '../utils/human';
 
 const logger = pino({ name: 'meet-joiner' });
 
@@ -107,10 +114,9 @@ export class MeetJoiner {
                     logger.debug('Network did not fully idle, continuing anyway');
                 });
 
-                // Wait for Meet UI to initialize
-                // First attempt needs more time since it's cold loading
-                // Subsequent attempts are faster due to cached resources
-                await this.page.waitForTimeout(attempt === 1 ? 4000 : 3000);
+                // Simulate human reading the page before interacting
+                // This adds random delays and occasional mouse movements
+                await simulateReading(this.page, attempt === 1 ? 3000 : 2000);
 
                 // Check for "can't join" error before proceeding
                 const cantJoinError = await this.page.locator('text=You can\'t join this video call').isVisible({ timeout: 2000 }).catch(() => false);
@@ -124,8 +130,14 @@ export class MeetJoiner {
                 // Wait for page to load and handle any initial dialogs
                 await this.dismissDialogs();
 
+                // Small pause after dismissing dialogs
+                await randomDelay(500, 1500);
+
                 // Turn off camera and microphone before joining
                 await this.muteMediaDevices();
+
+                // Another small pause
+                await randomDelay(500, 1000);
 
                 // Enter bot name
                 await this.enterName();
@@ -255,7 +267,7 @@ export class MeetJoiner {
     }
 
     /**
-     * Enter the bot's display name
+     * Enter the bot's display name with human-like typing
      */
     private async enterName(): Promise<void> {
         logger.debug({ botName: this.options.botName }, 'Entering bot name');
@@ -265,9 +277,12 @@ export class MeetJoiner {
             const nameInput = this.page.locator(SELECTORS.nameInput);
             await nameInput.waitFor({ timeout: 10000 });
 
-            // Clear existing name and enter bot name
-            await nameInput.clear();
-            await nameInput.fill(this.options.botName ?? BOT_CONFIG.DEFAULT_BOT_NAME);
+            // Simulate reading the page before acting
+            await mediumDelay();
+
+            // Clear existing name and type bot name like a human
+            const botName = this.options.botName ?? BOT_CONFIG.DEFAULT_BOT_NAME;
+            await humanType(this.page, nameInput, botName);
 
             logger.info({ botName: this.options.botName }, 'Entered bot name');
         } catch (error) {
@@ -276,7 +291,7 @@ export class MeetJoiner {
     }
 
     /**
-     * Click the join/ask to join button
+     * Click the join/ask to join button with human-like behavior
      * IMPORTANT: Button is DISABLED until name is entered!
      */
     private async clickJoinButton(): Promise<void> {
@@ -304,15 +319,17 @@ export class MeetJoiner {
                         const isDisabled = await button.isDisabled().catch(() => true);
                         if (!isDisabled) {
                             logger.info({ selector }, 'Join button is enabled, clicking...');
-                            await button.click();
+
+                            // Use human-like click with mouse movement
+                            await humanClick(this.page, button);
                             return;
                         }
-                        await this.page.waitForTimeout(300);
+                        await randomDelay(200, 400);
                     }
 
                     // If still disabled after 5s, try clicking anyway
                     logger.warn({ selector }, 'Button still appears disabled, attempting click anyway...');
-                    await button.click({ force: true });
+                    await humanClick(this.page, button);
                     return;
                 }
             } catch (error) {
