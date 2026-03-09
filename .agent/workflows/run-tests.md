@@ -9,6 +9,7 @@ Execute tests for all packages or specific packages.
 ## All Tests
 
 // turbo
+
 ```bash
 pnpm test
 ```
@@ -16,19 +17,25 @@ pnpm test
 ## Package-Specific Tests
 
 ### Shared Package
+
 // turbo
+
 ```bash
 pnpm --filter @meeting-ai/shared test
 ```
 
 ### Bot Runner
+
 // turbo
+
 ```bash
 pnpm --filter @meeting-ai/bot-runner test
 ```
 
 ### AI Backend
+
 // turbo
+
 ```bash
 pnpm --filter @meeting-ai/ai-backend test
 ```

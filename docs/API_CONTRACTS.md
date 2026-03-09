@@ -7,12 +7,14 @@ This document defines the API contracts between Bot Runner and AI Backend.
 ### Bot Runner → AI Backend
 
 #### Stream Transcript
+
 ```http
 POST /api/v1/stream/transcript
 Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "batch": {
@@ -37,6 +39,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "acknowledged": true,
@@ -46,16 +49,19 @@ Content-Type: application/json
 ```
 
 #### Meeting Started
+
 ```http
 POST /api/v1/meetings/start
 ```
 
 #### Meeting Ended
+
 ```http
 POST /api/v1/meetings/:meetingId/end
 ```
 
 #### Participant Update
+
 ```http
 POST /api/v1/meetings/:meetingId/participant
 ```
@@ -63,23 +69,25 @@ POST /api/v1/meetings/:meetingId/participant
 ### AI Backend → Bot Runner
 
 #### Join Meeting
+
 ```http
 POST /api/v1/bot/join
 ```
 
 #### Leave Meeting
+
 ```http
 POST /api/v1/bot/:sessionId/leave
 ```
 
 ## Error Codes
 
-| Code | Description |
-|------|-------------|
-| E1001 | Bot join failed |
-| E1002 | Caption capture error |
+| Code  | Description                  |
+| ----- | ---------------------------- |
+| E1001 | Bot join failed              |
+| E1002 | Caption capture error        |
 | E2001 | Transcript processing failed |
-| E2002 | MoM generation failed |
-| E3001 | Stream connection failed |
+| E2002 | MoM generation failed        |
+| E3001 | Stream connection failed     |
 
 See `@meeting-ai/shared/constants` for complete list.

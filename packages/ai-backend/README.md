@@ -7,6 +7,7 @@
 ## Overview
 
 This package handles:
+
 - Receiving and storing transcript streams from Bot Runner
 - AI-powered extraction of key information (decisions, action items)
 - Minutes of Meeting (MoM) generation
@@ -74,21 +75,21 @@ LOG_LEVEL=info
 
 ### From Bot Runner
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/stream/transcript` | Receive transcript batches |
-| POST | `/api/v1/meetings/start` | Meeting started notification |
-| POST | `/api/v1/meetings/:id/end` | Meeting ended notification |
-| POST | `/api/v1/meetings/:id/participant` | Participant update |
+| Method | Endpoint                           | Description                  |
+| ------ | ---------------------------------- | ---------------------------- |
+| POST   | `/api/v1/stream/transcript`        | Receive transcript batches   |
+| POST   | `/api/v1/meetings/start`           | Meeting started notification |
+| POST   | `/api/v1/meetings/:id/end`         | Meeting ended notification   |
+| POST   | `/api/v1/meetings/:id/participant` | Participant update           |
 
 ### For Clients
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/meetings/:id/mom` | Get Minutes of Meeting |
-| GET | `/api/v1/meetings/:id/tasks` | Get extracted tasks |
-| GET | `/api/v1/series/:id/progress` | Longitudinal progress report |
-| POST | `/api/v1/rag/query` | Query meeting context |
+| Method | Endpoint                      | Description                  |
+| ------ | ----------------------------- | ---------------------------- |
+| GET    | `/api/v1/meetings/:id/mom`    | Get Minutes of Meeting       |
+| GET    | `/api/v1/meetings/:id/tasks`  | Get extracted tasks          |
+| GET    | `/api/v1/series/:id/progress` | Longitudinal progress report |
+| POST   | `/api/v1/rag/query`           | Query meeting context        |
 
 ## Data Flow
 

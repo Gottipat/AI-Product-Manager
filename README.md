@@ -39,11 +39,11 @@ A system that joins Google Meet sessions as a bot participant, captures live cap
 
 ## Team Ownership
 
-| Package | Owner | Description |
-|---------|-------|-------------|
-| `@meeting-ai/shared` | Both | Types, schemas, API contracts |
+| Package                  | Owner  | Description                     |
+| ------------------------ | ------ | ------------------------------- |
+| `@meeting-ai/shared`     | Both   | Types, schemas, API contracts   |
 | `@meeting-ai/bot-runner` | Friend | Playwright bot, caption capture |
-| `@meeting-ai/ai-backend` | You | AI extraction, MoM, RAG |
+| `@meeting-ai/ai-backend` | You    | AI extraction, MoM, RAG         |
 
 ## Quick Start
 
