@@ -3,15 +3,15 @@
  * @description Register all API routes with Fastify
  */
 
-import { FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
+import { FastifyInstance } from 'fastify';
 
-import { authRoutes } from './auth.js';
-import { projectRoutes } from './projects.js';
 import { aiRoutes } from './ai.js';
+import { authRoutes } from './auth.js';
 import { meetingItemsRoutes } from './meetingItems.js';
 import { meetingRoutes } from './meetings.js';
 import { momRoutes } from './mom.js';
+import { projectRoutes } from './projects.js';
 import { transcriptRoutes } from './transcripts.js';
 
 export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
@@ -29,4 +29,3 @@ export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   await momRoutes(fastify);
   await meetingItemsRoutes(fastify);
 }
-

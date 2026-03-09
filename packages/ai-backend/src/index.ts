@@ -12,12 +12,11 @@
  */
 
 import 'dotenv/config';
+import cors from '@fastify/cors';
 import { API_CONFIG } from '@meeting-ai/shared';
 import Fastify from 'fastify';
 
 import { registerRoutes } from './routes/index.js';
-
-import cors from '@fastify/cors';
 
 const server = Fastify({
   logger: true,
@@ -43,9 +42,12 @@ async function start(): Promise<void> {
     });
 
     // Register all routes
-    await server.register(async (api) => {
-      await registerRoutes(api);
-    }, { prefix: '/api/v1' });
+    await server.register(
+      async (api) => {
+        await registerRoutes(api);
+      },
+      { prefix: '/api/v1' }
+    );
 
     await server.listen({ port: 3000, host: '0.0.0.0' });
     console.warn(`AI Backend listening on http://localhost:3000`);

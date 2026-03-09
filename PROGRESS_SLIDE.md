@@ -20,6 +20,7 @@ Documentation    ████████████████████░
 ## ✅ Completed Features
 
 ### 🧠 AI Backend (90%)
+
 - ✅ **Complete Database Schema** - 10+ tables, full relationships
 - ✅ **AI Pipeline** - MoM generation, action item extraction (14 types)
 - ✅ **RAG System** - Semantic search, embeddings, context retrieval
@@ -27,6 +28,7 @@ Documentation    ████████████████████░
 - ✅ **14 Test Files** - Comprehensive test coverage
 
 ### 💻 Web Dashboard (70%)
+
 - ✅ **Authentication** - Sign up, sign in, protected routes
 - ✅ **Project Management** - Create, view, manage projects
 - ✅ **Task Management** - Filterable task lists, status tracking
@@ -34,6 +36,7 @@ Documentation    ████████████████████░
 - ✅ **Modern UI** - Dark theme, responsive design
 
 ### 📚 Documentation (95%)
+
 - ✅ **20+ Documentation Files** - Architecture, API, Database, Testing
 - ✅ **Complete API Reference** - All endpoints documented
 - ✅ **Database Schema** - Full ERD and table reference
@@ -43,11 +46,13 @@ Documentation    ████████████████████░
 ## ⚠️ In Progress / Pending
 
 ### 🔴 Bot Runner (5% - Critical)
+
 - ⚠️ Playwright bot for Google Meet
 - ⚠️ Caption capture
 - ⚠️ Transcript streaming
 
 ### 🟡 Web Dashboard Enhancements
+
 - Meeting detail pages
 - MoM viewing interface
 - Real-time updates
@@ -56,13 +61,13 @@ Documentation    ████████████████████░
 
 ## 🏗️ Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
+| Layer        | Technology                         |
+| ------------ | ---------------------------------- |
 | **Frontend** | Next.js 16, React 19, Tailwind CSS |
-| **Backend** | Fastify, TypeScript, Node.js 20+ |
-| **Database** | PostgreSQL, Drizzle ORM |
-| **AI/LLM** | OpenAI GPT-4o, Embeddings |
-| **Testing** | Vitest |
+| **Backend**  | Fastify, TypeScript, Node.js 20+   |
+| **Database** | PostgreSQL, Drizzle ORM            |
+| **AI/LLM**   | OpenAI GPT-4o, Embeddings          |
+| **Testing**  | Vitest                             |
 
 ---
 
@@ -91,7 +96,7 @@ Documentation    ████████████████████░
 ✅ RAG system for semantic search  
 ✅ Modern, functional web dashboard  
 ✅ Extensive documentation  
-✅ Type-safe, tested codebase  
+✅ Type-safe, tested codebase
 
 ---
 

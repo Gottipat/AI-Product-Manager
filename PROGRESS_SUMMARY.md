@@ -5,6 +5,7 @@
 **Context-Aware AI Meeting System** - A comprehensive platform for longitudinal analysis of recurring meetings with AI-powered insights.
 
 **Core Value Proposition:**
+
 - Bot participant joins Google Meet sessions (with permission)
 - Captures live captions with speaker attribution
 - AI extracts decisions, action items, and key insights
@@ -16,28 +17,29 @@
 
 The system can automatically extract and track **14 different types** of meeting content:
 
-| # | Type | Description |
-|---|------|-------------|
-| 1 | **`action_item`** | Tasks to be completed |
-| 2 | **`decision`** | Decisions made during the meeting |
-| 3 | **`announcement`** | Information shared with the team |
-| 4 | **`project_update`** | Status updates on projects |
-| 5 | **`blocker`** | Issues blocking progress |
-| 6 | **`idea`** | Suggestions or ideas proposed |
-| 7 | **`question`** | Questions raised during discussion |
-| 8 | **`risk`** | Risks identified |
-| 9 | **`commitment`** | Promises or commitments made |
-| 10 | **`deadline`** | Dates or deadlines mentioned |
-| 11 | **`dependency`** | External dependencies identified |
-| 12 | **`parking_lot`** | Topics deferred for later discussion |
-| 13 | **`key_takeaway`** | Important insights or learnings |
-| 14 | **`reference`** | Resources, documents, or links mentioned |
+| #   | Type                 | Description                              |
+| --- | -------------------- | ---------------------------------------- |
+| 1   | **`action_item`**    | Tasks to be completed                    |
+| 2   | **`decision`**       | Decisions made during the meeting        |
+| 3   | **`announcement`**   | Information shared with the team         |
+| 4   | **`project_update`** | Status updates on projects               |
+| 5   | **`blocker`**        | Issues blocking progress                 |
+| 6   | **`idea`**           | Suggestions or ideas proposed            |
+| 7   | **`question`**       | Questions raised during discussion       |
+| 8   | **`risk`**           | Risks identified                         |
+| 9   | **`commitment`**     | Promises or commitments made             |
+| 10  | **`deadline`**       | Dates or deadlines mentioned             |
+| 11  | **`dependency`**     | External dependencies identified         |
+| 12  | **`parking_lot`**    | Topics deferred for later discussion     |
+| 13  | **`key_takeaway`**   | Important insights or learnings          |
+| 14  | **`reference`**      | Resources, documents, or links mentioned |
 
 ---
 
 ## 🏗️ Architecture & Tech Stack
 
 ### Monorepo Structure (pnpm workspaces)
+
 ```
 AI-Product-Manager/
 ├── packages/
@@ -51,15 +53,15 @@ AI-Product-Manager/
 
 ### Technology Stack
 
-| Component | Technology |
-|-----------|-----------|
-| **Frontend** | Next.js 16, React 19, Tailwind CSS 4 |
-| **Backend** | Fastify, TypeScript, Node.js 20+ |
-| **Database** | PostgreSQL with Drizzle ORM |
-| **AI/LLM** | OpenAI GPT-4o, text-embedding-3-small |
-| **Testing** | Vitest (14 test files) |
-| **Auth** | JWT, bcrypt, cookie-based sessions |
-| **Bot** | Playwright (to be implemented) |
+| Component    | Technology                            |
+| ------------ | ------------------------------------- |
+| **Frontend** | Next.js 16, React 19, Tailwind CSS 4  |
+| **Backend**  | Fastify, TypeScript, Node.js 20+      |
+| **Database** | PostgreSQL with Drizzle ORM           |
+| **AI/LLM**   | OpenAI GPT-4o, text-embedding-3-small |
+| **Testing**  | Vitest (14 test files)                |
+| **Auth**     | JWT, bcrypt, cookie-based sessions    |
+| **Bot**      | Playwright (to be implemented)        |
 
 ---
 
@@ -68,6 +70,7 @@ AI-Product-Manager/
 ### 1. **AI Backend** (`@meeting-ai/ai-backend`) - **~90% Complete**
 
 #### Database Layer ✅
+
 - ✅ Complete PostgreSQL schema with 10+ tables
 - ✅ Drizzle ORM setup with migrations
 - ✅ Repository pattern for data access
@@ -81,6 +84,7 @@ AI-Product-Manager/
   - Embeddings for RAG
 
 #### AI Pipeline ✅
+
 - ✅ **OpenAI Service** with structured outputs (Zod schemas)
   - MoM generation with executive summary
   - Action item extraction (14 types)
@@ -95,6 +99,7 @@ AI-Product-Manager/
   - Statistics and metadata
 
 #### 14 Meeting Item Types ✅
+
 The system can extract and track 14 different types of meeting content:
 
 1. **`action_item`** - Tasks to be completed
@@ -111,12 +116,14 @@ The system can extract and track 14 different types of meeting content:
 12. **`parking_lot`** - Topics deferred for later discussion
 13. **`key_takeaway`** - Important insights or learnings
 14. **`reference`** - Resources, documents, or links mentioned
+
 - ✅ **RAG Service** - Semantic search
   - Content indexing
   - Vector similarity search
   - Context retrieval for Q&A
 
 #### API Routes ✅
+
 - ✅ **Authentication** (`/auth/*`)
   - Signup, Signin, Logout
   - JWT-based session management
@@ -150,6 +157,7 @@ The system can extract and track 14 different types of meeting content:
   - `/context` - RAG context retrieval
 
 #### Testing ✅
+
 - ✅ 14 test files covering:
   - Schema validation
   - Pipeline error handling
@@ -160,12 +168,14 @@ The system can extract and track 14 different types of meeting content:
 ### 2. **Web Dashboard** (`@meeting-ai/web`) - **~70% Complete**
 
 #### Authentication ✅
+
 - ✅ Sign in page
 - ✅ Sign up page
 - ✅ Protected routes with auth middleware
 - ✅ User session management
 
 #### Projects Management ✅
+
 - ✅ Projects list page
   - View all projects
   - Create new projects
@@ -178,6 +188,7 @@ The system can extract and track 14 different types of meeting content:
   - Project statistics
 
 #### UI Components ✅
+
 - ✅ **TaskList** - Display meeting items with filtering
   - Filter by type (all, action_item, decision, blocker)
   - Status indicators
@@ -193,24 +204,28 @@ The system can extract and track 14 different types of meeting content:
   - Logout functionality
 
 #### API Integration ✅
+
 - ✅ Centralized API client (`lib/api.ts`)
 - ✅ Type-safe API methods
 - ✅ Error handling
 - ✅ Cookie-based authentication
 
 #### Styling ✅
+
 - ✅ Modern dark theme (slate-900 background)
 - ✅ Purple accent colors
 - ✅ Responsive design
 - ✅ Tailwind CSS 4
 
 ### 3. **Shared Package** (`@meeting-ai/shared`) - **✅ Complete**
+
 - ✅ Type definitions
 - ✅ API contracts
 - ✅ Validation schemas
 - ✅ Constants (API config, bot config)
 
 ### 4. **Bot Runner** (`@meeting-ai/bot-runner`) - **~5% Complete**
+
 - ⚠️ Placeholder implementation only
 - ⚠️ TODO: Playwright bot logic
 - ⚠️ TODO: Google Meet integration
@@ -221,14 +236,14 @@ The system can extract and track 14 different types of meeting content:
 
 ## 📊 Key Metrics
 
-| Metric | Value |
-|--------|-------|
-| **Total TypeScript Files** | 75 files |
-| **Test Files** | 14 files |
-| **API Endpoints** | 30+ endpoints |
-| **Database Tables** | 10+ tables |
-| **Meeting Item Types** | 14 types |
-| **Documentation Files** | 20+ markdown files |
+| Metric                     | Value              |
+| -------------------------- | ------------------ |
+| **Total TypeScript Files** | 75 files           |
+| **Test Files**             | 14 files           |
+| **API Endpoints**          | 30+ endpoints      |
+| **Database Tables**        | 10+ tables         |
+| **Meeting Item Types**     | 14 types           |
+| **Documentation Files**    | 20+ markdown files |
 
 ---
 
@@ -236,18 +251,18 @@ The system can extract and track 14 different types of meeting content:
 
 ### Core Features Status
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Database Schema** | ✅ Complete | All tables, relationships, enums |
-| **Authentication** | ✅ Complete | JWT, signup, signin, logout |
-| **Project Management** | ✅ Complete | CRUD, stats, Meet links |
-| **Meeting Management** | ✅ Complete | Lifecycle, participants |
-| **Transcript Storage** | ✅ Complete | Batch insert, retrieval |
-| **MoM Generation** | ✅ Complete | AI-powered, structured output |
-| **Action Item Extraction** | ✅ Complete | 14 types, metadata |
-| **RAG System** | ✅ Complete | Embeddings, search, context |
-| **Web Dashboard** | ✅ 70% | Core features done, needs polish |
-| **Bot Integration** | ⚠️ 5% | Placeholder only |
+| Feature                    | Status      | Notes                            |
+| -------------------------- | ----------- | -------------------------------- |
+| **Database Schema**        | ✅ Complete | All tables, relationships, enums |
+| **Authentication**         | ✅ Complete | JWT, signup, signin, logout      |
+| **Project Management**     | ✅ Complete | CRUD, stats, Meet links          |
+| **Meeting Management**     | ✅ Complete | Lifecycle, participants          |
+| **Transcript Storage**     | ✅ Complete | Batch insert, retrieval          |
+| **MoM Generation**         | ✅ Complete | AI-powered, structured output    |
+| **Action Item Extraction** | ✅ Complete | 14 types, metadata               |
+| **RAG System**             | ✅ Complete | Embeddings, search, context      |
+| **Web Dashboard**          | ✅ 70%      | Core features done, needs polish |
+| **Bot Integration**        | ⚠️ 5%       | Placeholder only                 |
 
 ---
 
@@ -280,6 +295,7 @@ The system can extract and track 14 different types of meeting content:
    - Chat interface for Q&A
 
 ### Missing Link
+
 - ⚠️ **Bot Runner** - Not yet implemented
   - Cannot join Google Meet
   - Cannot capture captions
@@ -289,23 +305,24 @@ The system can extract and track 14 different types of meeting content:
 
 ## 📝 Documentation Status
 
-| Document | Status |
-|----------|--------|
-| Architecture | ✅ Complete |
-| API Endpoints | ✅ Complete |
-| Database Schema | ✅ Complete |
-| AI Pipeline | ✅ Complete |
-| Testing Guide | ✅ Complete |
-| Contributing Guide | ✅ Complete |
-| Environment Setup | ✅ Complete |
+| Document            | Status      |
+| ------------------- | ----------- |
+| Architecture        | ✅ Complete |
+| API Endpoints       | ✅ Complete |
+| Database Schema     | ✅ Complete |
+| AI Pipeline         | ✅ Complete |
+| Testing Guide       | ✅ Complete |
+| Contributing Guide  | ✅ Complete |
+| Environment Setup   | ✅ Complete |
 | Database Migrations | ✅ Complete |
-| Troubleshooting | ✅ Complete |
+| Troubleshooting     | ✅ Complete |
 
 ---
 
 ## 🚧 Next Steps / Roadmap
 
 ### High Priority
+
 1. **Bot Runner Implementation** 🔴
    - Playwright setup for Google Meet
    - Caption capture logic
@@ -324,6 +341,7 @@ The system can extract and track 14 different types of meeting content:
    - Bot runner tests
 
 ### Medium Priority
+
 4. **Longitudinal Analysis** 🟢
    - Cross-meeting progress tracking
    - Trend analysis
@@ -340,6 +358,7 @@ The system can extract and track 14 different types of meeting content:
    - Meeting reports
 
 ### Low Priority
+
 7. **Advanced Features** 🔵
    - Multi-organization support
    - Team collaboration features
@@ -382,12 +401,14 @@ The system can extract and track 14 different types of meeting content:
 - **Documentation**: ~95% ✅
 
 **Ready for:**
+
 - ✅ API testing
 - ✅ Frontend testing
 - ✅ Integration testing
 - ⚠️ End-to-end testing (blocked by bot runner)
 
 **Blocked by:**
+
 - 🔴 Bot Runner implementation needed for full E2E flow
 
 ---
@@ -404,5 +425,5 @@ The system can extract and track 14 different types of meeting content:
 
 ---
 
-*Last Updated: Based on current codebase analysis*
-*Prepared for: Progress Presentation Slide*
+_Last Updated: Based on current codebase analysis_
+_Prepared for: Progress Presentation Slide_
