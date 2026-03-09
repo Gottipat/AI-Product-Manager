@@ -9,31 +9,19 @@ The Meeting AI system consists of two main services that communicate via REST/We
 │                        Meeting AI System                         │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  ┌─────────────┐                        ┌─────────────────────┐ │
-│  │ Google Meet │                        │      Clients        │ │
-│  │   Session   │                        │   (Web Dashboard)   │ │
-│  └──────┬──────┘                        └──────────┬──────────┘ │
-│         │ Join as participant                      │            │
-│         ▼                                          ▼            │
-│  ┌─────────────────────┐  WebSocket/HTTP  ┌────────────────────┐│
-│  │    Bot Runner       │─────────────────▶│    AI Backend      ││
-│  │                     │                  │                    ││
-│  │ ┌─────────────────┐ │  Transcript      │ ┌────────────────┐ ││
-│  │ │ Playwright      │ │  Events          │ │ API Layer      │ ││
-│  │ │ Browser         │ │                  │ │ (Fastify)      │ ││
-│  │ └─────────────────┘ │                  │ └────────────────┘ ││
-│  │ ┌─────────────────┐ │                  │ ┌────────────────┐ ││
-│  │ │ Caption Parser  │ │                  │ │ AI Extraction  │ ││
-│  │ └─────────────────┘ │                  │ │ (OpenAI)       │ ││
-│  │ ┌─────────────────┐ │                  │ └────────────────┘ ││
-│  │ │ Stream Client   │ │                  │ ┌────────────────┐ ││
-│  │ └─────────────────┘ │                  │ │ Storage        │ ││
-│  └─────────────────────┘                  │ │ (PostgreSQL)   │ ││
-│                                           │ └────────────────┘ ││
-│                                           │ ┌────────────────┐ ││
-│                                           │ │ RAG System     │ ││
-│                                           │ └────────────────┘ ││
-│                                           └────────────────────┘│
+│  ┌─────────────┐       ┌──────────────────┐                      │
+│  │ Google Meet │       │  Web Dashboard   │                      │
+│  │   Session   │       │ (Next.js/React)  │                      │
+│  └──────┬──────┘       └────────┬─────────┘                      │
+│         │ Join                  │ REST/Auth                      │
+│         ▼                       ▼                                │
+│  ┌─────────────┐       ┌──────────────────┐                      │
+│  │ Bot Runner  │──────▶│    AI Backend    │                      │
+│  └─────────────┘       └────────┬─────────┘                      │
+│                                 │                                │
+│                        ┌────────▼─────────┐                      │
+│                        │    PostgreSQL    │                      │
+│                        └──────────────────┘                      │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -95,20 +83,22 @@ sequenceDiagram
 @meeting-ai/shared
         ▲
         │ (workspace:*)
-   ┌────┴────┐
-   │         │
-   ▼         ▼
-bot-runner  ai-backend
+   ┌────┼────┐
+   │    │    │
+   ▼    ▼    ▼
+ bot   ai   web
+runner backend
+
 ```
 
 ## Technology Stack
 
 | Component  | Technology             |
 | ---------- | ---------------------- |
+| Web App    | Next.js 14, React      |
 | Bot Runner | Playwright, TypeScript |
 | AI Backend | Fastify, TypeScript    |
 | AI/LLM     | OpenAI GPT-4           |
 | Database   | PostgreSQL             |
-| Cache      | Redis                  |
-| Validation | Zod                    |
+| Auth       | JWT, bcrypt            |
 | Testing    | Vitest                 |

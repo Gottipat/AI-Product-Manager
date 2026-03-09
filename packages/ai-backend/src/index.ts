@@ -11,8 +11,12 @@
  * - RAG system for context retrieval
  */
 
+import 'dotenv/config';
+import cors from '@fastify/cors';
 import { API_CONFIG } from '@meeting-ai/shared';
 import Fastify from 'fastify';
+
+import { registerRoutes } from './routes/index.js';
 
 const server = Fastify({
   logger: true,
@@ -24,23 +28,27 @@ server.get('/api/v1/health', async () => {
     status: 'healthy',
     version: '0.0.1',
     timestamp: new Date().toISOString(),
-    services: [],
+    services: ['database', 'meetings', 'transcripts', 'mom', 'items'],
   };
-});
-
-// Placeholder routes - You will implement
-server.post('/api/v1/stream/transcript', async (_request, reply) => {
-  // TODO: Implement transcript streaming endpoint
-  return reply.status(501).send({ error: 'Not implemented' });
-});
-
-server.post('/api/v1/meetings/start', async (_request, reply) => {
-  // TODO: Implement meeting start endpoint
-  return reply.status(501).send({ error: 'Not implemented' });
 });
 
 async function start(): Promise<void> {
   try {
+    // Register CORS
+    await server.register(cors, {
+      origin: ['http://localhost:3000', 'http://localhost:3001'],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    });
+
+    // Register all routes
+    await server.register(
+      async (api) => {
+        await registerRoutes(api);
+      },
+      { prefix: '/api/v1' }
+    );
+
     await server.listen({ port: 3000, host: '0.0.0.0' });
     console.warn(`AI Backend listening on http://localhost:3000`);
     console.warn(`Timeout config: ${API_CONFIG.DEFAULT_TIMEOUT_MS}ms`);

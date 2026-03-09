@@ -1,0 +1,14 @@
+# Build outputs
+dist/
+.next/
+out/
+
+# Dependencies
+node_modules/
+
+# Package manager
+pnpm-lock.yaml
+package-lock.json
+
+# Generated
+*.d.ts
