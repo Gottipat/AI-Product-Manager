@@ -26,10 +26,11 @@ const SELECTORS = {
     // Caption language settings
     captionSettings: 'li:has-text("Caption settings")',
 
-    // Caption container (where captions appear)
-    captionContainer: '[jsname="dsyhDe"]',
-    captionContainerAlt: '.iOzk7',
-    captionContainerAlt2: '[class*="caption"]',
+    // Caption container (where captions appear) - updated selectors
+    captionContainer: '.iS70S',
+    captionContainerAlt: '[jsname="dsyhDe"]',
+    captionContainerAlt2: '.iOzk7',
+    captionContainerAlt3: '[class*="caption"]',
 } as const;
 
 export interface CaptionsOptions {
@@ -140,6 +141,7 @@ export class CaptionsController {
                 container.isVisible({ timeout: 2000 }).catch(() => false),
                 containerAlt.isVisible({ timeout: 2000 }).catch(() => false),
                 containerAlt2.isVisible({ timeout: 2000 }).catch(() => false),
+                this.page.locator(SELECTORS.captionContainerAlt3).isVisible({ timeout: 2000 }).catch(() => false),
             ]);
 
             return isVisible;
@@ -205,6 +207,7 @@ export class CaptionsController {
             SELECTORS.captionContainer,
             SELECTORS.captionContainerAlt,
             SELECTORS.captionContainerAlt2,
+            SELECTORS.captionContainerAlt3,
         ];
 
         for (const selector of selectors) {

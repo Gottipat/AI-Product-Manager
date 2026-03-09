@@ -14,17 +14,20 @@ const logger = pino({ name: 'caption-parser' });
  */
 const SELECTORS = {
     // Caption container that holds all caption elements
-    captionContainer: '[jsname="dsyhDe"]',
-    captionContainerAlt: '.iOzk7',
-    captionContainerAlt2: '[class*="a4cQT"]',
+    captionContainer: '.iS70S',
+    captionContainerAlt: '[jsname="dsyhDe"]',
+    captionContainerAlt2: '.iOzk7',
+    captionContainerAlt3: '[class*="a4cQT"]',
 
     // Individual caption elements within the container
-    captionText: '[class*="TBMuR"]',
-    captionTextAlt: '.CNusmb',
+    captionText: '.McS7S',
+    captionTextAlt: '[class*="TBMuR"]',
+    captionTextAlt2: '.CNusmb',
 
     // Speaker name element
-    speakerName: '[class*="zs7s8d"]',
-    speakerNameAlt: '.KcIKyf',
+    speakerName: '.VpS7S',
+    speakerNameAlt: '[class*="zs7s8d"]',
+    speakerNameAlt2: '.KcIKyf',
 } as const;
 
 /**
@@ -143,12 +146,14 @@ export class CaptionParser {
             SELECTORS.captionContainer,
             SELECTORS.captionContainerAlt,
             SELECTORS.captionContainerAlt2,
+            SELECTORS.captionContainerAlt3,
         ];
 
         for (const selector of selectors) {
             try {
                 const element = this.page.locator(selector);
                 if (await element.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    logger.info({ selector }, 'Found caption container using selector');
                     return selector;
                 }
             } catch {
@@ -187,17 +192,17 @@ export class CaptionParser {
 
             // Function to extract caption data
             const extractCaption = () => {
-                // Try to find speaker name
+                // Try to find speaker name with updated selectors
                 let speaker = 'Unknown';
-                const speakerElements = container.querySelectorAll('[class*="zs7s8d"], .KcIKyf');
+                const speakerElements = container.querySelectorAll('.VpS7S, [class*="zs7s8d"], .KcIKyf');
                 if (speakerElements.length > 0) {
                     const lastSpeaker = speakerElements[speakerElements.length - 1];
                     speaker = lastSpeaker?.textContent?.trim() || 'Unknown';
                 }
 
-                // Get the caption text
+                // Get the caption text with updated selectors
                 let text = '';
-                const textElements = container.querySelectorAll('[class*="TBMuR"], .CNusmb');
+                const textElements = container.querySelectorAll('.McS7S, [class*="TBMuR"], .CNusmb');
                 if (textElements.length > 0) {
                     // Get the last/most recent caption text
                     const lastText = textElements[textElements.length - 1];
@@ -282,6 +287,7 @@ export class CaptionParser {
             const result = await this.page.evaluate(() => {
                 // Try multiple selectors for the caption container
                 const containers = [
+                    document.querySelector('.iS70S'),
                     document.querySelector('[jsname="dsyhDe"]'),
                     document.querySelector('.iOzk7'),
                     document.querySelector('[class*="a4cQT"]'),
@@ -294,16 +300,16 @@ export class CaptionParser {
                 const container = containers[0];
                 if (!container) return null;
 
-                // Extract speaker
+                // Extract speaker with updated selectors
                 let speaker = 'Unknown';
-                const speakerEl = container.querySelector('[class*="zs7s8d"], .KcIKyf');
+                const speakerEl = container.querySelector('.VpS7S, [class*="zs7s8d"], .KcIKyf');
                 if (speakerEl) {
                     speaker = speakerEl.textContent?.trim() || 'Unknown';
                 }
 
-                // Extract text
+                // Extract text with updated selectors
                 let text = '';
-                const textEl = container.querySelector('[class*="TBMuR"], .CNusmb');
+                const textEl = container.querySelector('.McS7S, [class*="TBMuR"], .CNusmb');
                 if (textEl) {
                     text = textEl.textContent?.trim() || '';
                 }

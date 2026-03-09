@@ -206,6 +206,14 @@ export async function main(): Promise<void> {
                 });
                 await participantTracker.startTracking();
 
+                // DUMP DOM EVERY 5 SECONDS FOR DEBUGGING
+                setInterval(async () => {
+                    try {
+                        const html = await page.content();
+                        fs.writeFileSync(path.resolve(process.cwd(), 'meet-dom.html'), html);
+                    } catch (e) { }
+                }, 5000);
+
                 logger.info('✅ Bot is now in the meeting with captions enabled. Speak to see transcripts!');
                 logger.info('Press Ctrl+C to leave and see final stats.');
             } else {
