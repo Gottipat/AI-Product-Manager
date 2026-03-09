@@ -7,10 +7,11 @@
 ## Overview
 
 This package handles:
-- **Joining Google Meet** via Playwright/Chromium with human-like behavior
-- **Anti-detection stealth** measures to bypass bot detection  
-- **Transcript capture** via captions or audio transcription
-- **Streaming transcripts** in real-time to AI Backend
+
+- Joining Google Meet sessions via Playwright/Chromium
+- Enabling and capturing live captions
+- Parsing speaker-attributed transcript events
+- Streaming transcripts in real-time to AI Backend
 
 ## Architecture
 

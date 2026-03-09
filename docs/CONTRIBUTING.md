@@ -8,6 +8,7 @@ feature/* ──→ dev ──→ main
 ```
 
 **Rules:**
+
 - ❌ No direct commits to `main`
 - ❌ No direct PRs to `main` (except from `dev`)
 - ✅ Feature branches → `dev`
@@ -24,6 +25,7 @@ chore/[description]
 ```
 
 Examples:
+
 - `feature/ai-backend-mom-generation`
 - `feature/bot-runner-caption-parser`
 - `fix/shared-transcript-schema`
@@ -45,14 +47,15 @@ Format: `<type>(<scope>): <description>`
 **Scopes**: `shared`, `bot-runner`, `ai-backend`, `ci`, `docs`
 
 Examples:
+
 - `feat(ai-backend): add MoM generation endpoint`
 - `fix(shared): correct TranscriptEvent timestamp type`
 
 ## Code Review
 
-| Package | Required Reviewers |
-|---------|-------------------|
-| `shared` | @KumarSashank AND @Gottipat |
-| `bot-runner` | @Gottipat |
-| `ai-backend` | @KumarSashank |
-| `.github/`, `.context/` | Both |
+| Package                 | Required Reviewers          |
+| ----------------------- | --------------------------- |
+| `shared`                | @KumarSashank AND @Gottipat |
+| `bot-runner`            | @Gottipat                   |
+| `ai-backend`            | @KumarSashank               |
+| `.github/`, `.context/` | Both                        |

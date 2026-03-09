@@ -103,12 +103,12 @@ bot-runner  ai-backend
 
 ## Technology Stack
 
-| Component | Technology |
-|-----------|------------|
+| Component  | Technology             |
+| ---------- | ---------------------- |
 | Bot Runner | Playwright, TypeScript |
-| AI Backend | Fastify, TypeScript |
-| AI/LLM | OpenAI GPT-4 |
-| Database | PostgreSQL |
-| Cache | Redis |
-| Validation | Zod |
-| Testing | Vitest |
+| AI Backend | Fastify, TypeScript    |
+| AI/LLM     | OpenAI GPT-4           |
+| Database   | PostgreSQL             |
+| Cache      | Redis                  |
+| Validation | Zod                    |
+| Testing    | Vitest                 |

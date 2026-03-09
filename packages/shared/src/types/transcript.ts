@@ -7,47 +7,47 @@
  * A single transcript event captured from Google Meet captions
  */
 export interface TranscriptEvent {
-    /** Unique identifier for this transcript event */
-    id: string;
+  /** Unique identifier for this transcript event */
+  id: string;
 
-    /** ID of the meeting this event belongs to */
-    meetingId: string;
+  /** ID of the meeting this event belongs to */
+  meetingId: string;
 
-    /** Display name of the speaker */
-    speaker: string;
+  /** Display name of the speaker */
+  speaker: string;
 
-    /** Optional unique identifier for the speaker (if available) */
-    speakerId?: string;
+  /** Optional unique identifier for the speaker (if available) */
+  speakerId?: string;
 
-    /** The transcribed text content */
-    text: string;
+  /** The transcribed text content */
+  text: string;
 
-    /** ISO 8601 timestamp when this was captured */
-    timestamp: string;
+  /** ISO 8601 timestamp when this was captured */
+  timestamp: string;
 
-    /** Confidence score of the transcription (0-1) */
-    confidence?: number;
+  /** Confidence score of the transcription (0-1) */
+  confidence?: number;
 
-    /** Sequence number within the meeting */
-    sequenceNumber: number;
+  /** Sequence number within the meeting */
+  sequenceNumber: number;
 
-    /** Whether this is a final or interim transcript */
-    isFinal: boolean;
+  /** Whether this is a final or interim transcript */
+  isFinal: boolean;
 }
 
 /**
  * A batch of transcript events for streaming
  */
 export interface TranscriptBatch {
-    /** ID of the meeting */
-    meetingId: string;
+  /** ID of the meeting */
+  meetingId: string;
 
-    /** Array of transcript events in this batch */
-    events: TranscriptEvent[];
+  /** Array of transcript events in this batch */
+  events: TranscriptEvent[];
 
-    /** Batch sequence number for ordering */
-    batchNumber: number;
+  /** Batch sequence number for ordering */
+  batchNumber: number;
 
-    /** ISO 8601 timestamp when batch was created */
-    batchTimestamp: string;
+  /** ISO 8601 timestamp when batch was created */
+  batchTimestamp: string;
 }

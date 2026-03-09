@@ -4,11 +4,11 @@ You are assisting with the **Context-Aware AI Meeting System** - a monorepo for 
 
 ## Team Structure
 
-| Package | Owner | Focus |
-|---------|-------|-------|
-| `@meeting-ai/shared` | **Both** | Types, schemas, API contracts - SYNC POINT |
-| `@meeting-ai/bot-runner` | **Friend** | Playwright bot, caption capture |
-| `@meeting-ai/ai-backend` | **Sashank** | AI extraction, MoM, RAG |
+| Package                  | Owner       | Focus                                      |
+| ------------------------ | ----------- | ------------------------------------------ |
+| `@meeting-ai/shared`     | **Both**    | Types, schemas, API contracts - SYNC POINT |
+| `@meeting-ai/bot-runner` | **Friend**  | Playwright bot, caption capture            |
+| `@meeting-ai/ai-backend` | **Sashank** | AI extraction, MoM, RAG                    |
 
 ## Key Principles
 
