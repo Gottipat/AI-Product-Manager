@@ -16,6 +16,7 @@ import { BOT_CONFIG } from '@meeting-ai/shared';
 import { BrowserLauncher, BrowserSession } from './browser/index.js';
 import { MeetJoiner, CaptionsController, ParticipantTracker } from './meet/index.js';
 import { CaptionParser, TranscriptBuffer } from './captions/index.js';
+import { AuthManager } from './auth/index.js';
 
 const logger = pino({
     name: 'bot-runner',
@@ -28,6 +29,8 @@ const config = {
     botDisplayName: process.env.BOT_DISPLAY_NAME || BOT_CONFIG.DEFAULT_BOT_NAME,
     headless: process.env.HEADLESS === 'true',
     meetLink: process.env.MEET_LINK,
+    googleEmail: process.env.GOOGLE_EMAIL,
+    googlePassword: process.env.GOOGLE_PASSWORD,
 };
 
 /**
@@ -87,12 +90,25 @@ export async function main(): Promise<void> {
             'Browser session ready'
         );
 
-        // If a meet link is provided, join the meeting
+        // If a meet link is provided, process login and then join the meeting
         if (config.meetLink) {
-            logger.info({ meetLink: config.meetLink }, 'Meet link provided, joining meeting...');
+            logger.info({ meetLink: config.meetLink }, 'Meet link provided, preparing to join meeting...');
 
             // Get the page from the session
             const page = await session.getPage();
+
+            // Handle Authentication if credentials are provided
+            if (config.googleEmail && config.googlePassword) {
+                logger.info('Google credentials provided, starting authentication flow...');
+                const authManager = new AuthManager(page);
+                const authSuccess = await authManager.login(config.googleEmail, config.googlePassword);
+
+                if (!authSuccess) {
+                    logger.warn('Authentication failed or could not be verified. The bot will still attempt to join, but may be rejected by the meeting settings.');
+                }
+            } else {
+                logger.info('No Google credentials provided (GOOGLE_EMAIL / GOOGLE_PASSWORD). Bot will attempt to join as an unauthenticated guest.');
+            }
 
             // Create the joiner and attempt to join
             const joiner = new MeetJoiner(page, {

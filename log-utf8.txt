@@ -1,0 +1,31 @@
+﻿commit ddd1f3af0ae6d87efb09db140675b4db9b92a666
+Author: Kumar Sashank Ghanta <kumarsashank2003@gmail.com>
+Date:   Sun Feb 8 20:07:33 2026 -0500
+
+    docs: Update README to detail human-like behavior, anti-detection stealth, and expanded architecture for the bot runner.
+
+commit 1ea91efdaa87489855212be3da9015547c73a03e
+Author: Kumar Sashank Ghanta <kumarsashank2003@gmail.com>
+Date:   Sun Feb 8 20:03:40 2026 -0500
+
+    feat: Implement human-like interaction utilities to simulate natural typing, clicking, and delays in the meeting joiner.
+
+commit 543ce163ace09ea01420ce4ae07885a978630b9b
+Author: Kumar Sashank Ghanta <kumarsashank2003@gmail.com>
+Date:   Sun Feb 8 14:07:16 2026 -0500
+
+    feat: Implement comprehensive browser stealth measures and enhance meeting join reliability with improved retry logic, window management, and error handling.
+    
+    its working on mac currently
+
+commit ea290fc4710cfd65c871cbee97970926dd48a212
+Author: Kumar Sashank Ghanta <kumarsashank2003@gmail.com>
+Date:   Sun Feb 8 12:56:06 2026 -0500
+
+    refactor: Implement meeting join retry logic and enhance browser launch configuration for improved stability.
+
+commit 0c12d1ad20037a96afb6e5ffb80ce67f8eaa6749
+Author: Gottipati <95269059+Gottipat@users.noreply.github.com>
+Date:   Sat Feb 7 23:09:18 2026 -0500
+
+    feat: implement caption parsing and buffering capabilities within the new bot-runner package.
