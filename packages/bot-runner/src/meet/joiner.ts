@@ -7,11 +7,13 @@ import { Page } from 'playwright';
 import { BOT_CONFIG, MEETING_CONFIG } from '@meeting-ai/shared';
 import pino from 'pino';
 import {
+    createGhostCursor,
     humanType,
     humanClick,
     randomDelay,
     mediumDelay,
     simulateReading,
+    Cursor,
 } from '../utils/human';
 
 const logger = pino({ name: 'meet-joiner' });
@@ -69,6 +71,7 @@ export interface JoinerOptions {
 export class MeetJoiner {
     private page: Page;
     private options: Required<JoinerOptions>;
+    private cursor: Cursor | null = null;
 
     constructor(page: Page, options: JoinerOptions = {}) {
         this.page = page;
@@ -86,8 +89,21 @@ export class MeetJoiner {
     async join(meetLink: string): Promise<JoinResult> {
         logger.info({ meetLink, botName: this.options.botName }, 'Starting join flow');
 
-        // Retry up to 3 times with page reload (simulates manual F5)
-        const maxRetries = 3;
+        // Capture browser console logs for debugging
+        this.page.on('console', (msg) => {
+            const type = msg.type();
+            if (type === 'error' || type === 'warning') {
+                logger.debug({ type, text: msg.text() }, 'Browser console');
+            }
+        });
+
+        // Capture page errors
+        this.page.on('pageerror', (err) => {
+            logger.debug({ error: err.message }, 'Browser page error');
+        });
+
+        // Retry up to 5 times with page reload (simulates manual F5)
+        const maxRetries = 5;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
@@ -98,6 +114,13 @@ export class MeetJoiner {
                         timeout: 30000
                     });
                     logger.info({ attempt }, 'Navigated to meeting page');
+
+                    // Create ghost cursor after first page load
+                    try {
+                        this.cursor = await createGhostCursor(this.page);
+                    } catch (err) {
+                        logger.warn({ err }, 'Could not create ghost cursor, falling back to basic behavior');
+                    }
                 } else {
                     // Subsequent attempts: Use F5-style reload (not about:blank navigation)
                     // This preserves the browser context and cache that manual F5 uses
@@ -116,7 +139,7 @@ export class MeetJoiner {
 
                 // Simulate human reading the page before interacting
                 // This adds random delays and occasional mouse movements
-                await simulateReading(this.page, attempt === 1 ? 3000 : 2000);
+                await simulateReading(this.page, attempt === 1 ? 3000 : 2000, this.cursor);
 
                 // Check for "can't join" error before proceeding
                 const cantJoinError = await this.page.locator('text=You can\'t join this video call').isVisible({ timeout: 2000 }).catch(() => false);
@@ -282,7 +305,7 @@ export class MeetJoiner {
 
             // Clear existing name and type bot name like a human
             const botName = this.options.botName ?? BOT_CONFIG.DEFAULT_BOT_NAME;
-            await humanType(this.page, nameInput, botName);
+            await humanType(this.page, nameInput, botName, this.cursor);
 
             logger.info({ botName: this.options.botName }, 'Entered bot name');
         } catch (error) {
@@ -321,7 +344,7 @@ export class MeetJoiner {
                             logger.info({ selector }, 'Join button is enabled, clicking...');
 
                             // Use human-like click with mouse movement
-                            await humanClick(this.page, button);
+                            await humanClick(this.page, button, this.cursor);
                             return;
                         }
                         await randomDelay(200, 400);
@@ -329,7 +352,7 @@ export class MeetJoiner {
 
                     // If still disabled after 5s, try clicking anyway
                     logger.warn({ selector }, 'Button still appears disabled, attempting click anyway...');
-                    await humanClick(this.page, button);
+                    await humanClick(this.page, button, this.cursor);
                     return;
                 }
             } catch (error) {
@@ -349,6 +372,10 @@ export class MeetJoiner {
         const startTime = Date.now();
         const checkInterval = 2000; // Check every 2 seconds
 
+        // Give the page a moment to transition after clicking join
+        // This prevents false-positive "can't join" detection from stale page content
+        await randomDelay(3000, 5000);
+
         while (Date.now() - startTime < (this.options.joinTimeoutMs ?? MEETING_CONFIG.BOT_JOIN_TIMEOUT_MS)) {
             // Check if we're in the meeting
             if (await this.isInMeeting()) {
@@ -360,13 +387,13 @@ export class MeetJoiner {
                 };
             }
 
-            // Check for error states
+            // Check for error states (only after transition period)
             const errorResult = await this.checkForErrors();
             if (errorResult) {
                 return errorResult;
             }
 
-            // Check if still waiting
+            // Check if still waiting ("Asking to be let in")
             const isWaiting = await this.page
                 .locator(SELECTORS.waitingMessage)
                 .isVisible({ timeout: 500 })
@@ -413,13 +440,34 @@ export class MeetJoiner {
             };
         }
 
-        // Check if denied
+        // Check if denied - but verify it's a real denial, not stale page content
         if (await this.page.locator(SELECTORS.cannotJoin).isVisible({ timeout: 500 }).catch(() => false)) {
-            return {
-                success: false,
-                state: 'denied',
-                message: 'Cannot join this meeting',
-            };
+            // Log page state for debugging
+            const pageUrl = this.page.url();
+            const bodyText = await this.page.evaluate(() =>
+                document.body?.innerText?.substring(0, 500) || 'No body'
+            ).catch(() => 'Could not read body');
+
+            logger.warn({ pageUrl, bodyText }, 'Detected "can\'t join" - page state at denial');
+
+            // Check for countdown timer text ("Returning to home screen" / "X seconds left")
+            // If the countdown is present, this is the auto-redirect page after denial
+            const hasCountdown = await this.page.locator('text=Returning to home screen').isVisible({ timeout: 500 }).catch(() => false);
+            const hasSecondsLeft = await this.page.locator('text=seconds left').isVisible({ timeout: 500 }).catch(() => false);
+
+            if (hasCountdown || hasSecondsLeft) {
+                logger.warn('Confirmed: auto-redirect/denial page detected');
+                return {
+                    success: false,
+                    state: 'denied',
+                    message: 'Cannot join this meeting',
+                };
+            }
+
+            // Still showing "can't join" but no countdown - might be the lobby/waiting
+            // Wait a bit more before declaring denial
+            logger.info('"Can\'t join" text visible but no countdown - still checking...');
+            return null;
         }
 
         // Check if removed

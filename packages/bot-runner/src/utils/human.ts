@@ -1,12 +1,23 @@
 /**
  * @fileoverview Human Behavior Simulation
- * @description Utilities for making bot actions appear human-like
+ * @description Uses ghost-cursor-playwright for realistic mouse movements
+ *              (Bezier curves + Fitts's Law) and custom typing simulation.
+ *
+ * Library: ghost-cursor-playwright
+ *   - Creates natural bezier curve mouse paths
+ *   - Applies Fitts's Law for speed variation
+ *   - Overshoots targets and self-corrects
+ *   - Clicks random positions within elements
  */
 
 import { Page, Locator } from 'playwright';
+import { createCursor, Cursor } from 'ghost-cursor-playwright';
 import pino from 'pino';
 
 const logger = pino({ name: 'human-behavior' });
+
+// Re-export the Cursor type for consumers
+export type { Cursor };
 
 /**
  * Random number between min and max (inclusive)
@@ -14,6 +25,10 @@ const logger = pino({ name: 'human-behavior' });
 function randomBetween(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
+
+// ============================================================
+// DELAY UTILITIES
+// ============================================================
 
 /**
  * Random delay - simulates human pause
@@ -45,13 +60,33 @@ export async function longDelay(): Promise<void> {
     await randomDelay(2000, 4000);
 }
 
+// ============================================================
+// GHOST CURSOR (Bezier + Fitts's Law)
+// ============================================================
+
 /**
- * Type text like a human - one character at a time with random delays
+ * Create a ghost cursor attached to a page.
+ * The cursor uses Bezier curves and Fitts's Law for realistic movement.
+ */
+export async function createGhostCursor(page: Page): Promise<Cursor> {
+    const cursor = await createCursor(page);
+    logger.info('Ghost cursor created (Bezier + Fitts Law)');
+    return cursor;
+}
+
+// ============================================================
+// TYPING SIMULATION
+// ============================================================
+
+/**
+ * Type text like a human - one character at a time with random delays.
+ * Uses ghost cursor to click the field first if available.
  */
 export async function humanType(
     page: Page,
     locator: Locator,
     text: string,
+    cursor?: Cursor | null,
     options: {
         minCharDelay?: number;
         maxCharDelay?: number;
@@ -61,20 +96,37 @@ export async function humanType(
     const {
         minCharDelay = 50,
         maxCharDelay = 150,
-        mistakeProbability = 0.02, // 2% chance of making a typo
+        mistakeProbability = 0.02,
     } = options;
 
     logger.debug({ textLength: text.length }, 'Human typing');
 
-    // Click to focus first
-    await locator.click();
+    // Use ghost cursor to click the field if available
+    if (cursor) {
+        const box = await locator.boundingBox();
+        if (box) {
+            await cursor.actions.click({
+                target: {
+                    x: box.x,
+                    y: box.y,
+                    width: box.width,
+                    height: box.height,
+                },
+                waitBeforeClick: [100, 300],
+            });
+        } else {
+            await locator.click();
+        }
+    } else {
+        await locator.click();
+    }
     await shortDelay();
 
     // Clear any existing text
     await locator.fill('');
     await shortDelay();
 
-    // Type each character
+    // Type each character with human-like timing
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
         if (!char) continue;
@@ -100,143 +152,99 @@ export async function humanType(
     logger.debug('Human typing complete');
 }
 
+// ============================================================
+// PAGE BEHAVIOR SIMULATION
+// ============================================================
+
 /**
- * Move mouse to element with human-like bezier curve motion
+ * Simulate reading a page with idle cursor movements and scrolls.
+ * Uses ghost cursor for natural random mouse movements.
  */
-export async function humanMove(
+export async function simulateReading(
     page: Page,
-    target: { x: number; y: number },
-    options: {
-        steps?: number;
-        duration?: number;
-    } = {}
+    durationMs: number = 3000,
+    cursor?: Cursor | null
 ): Promise<void> {
-    const { steps = 25, duration = 500 } = options;
-
-    // Get current mouse position (approximate from viewport center if unknown)
-    const viewport = page.viewportSize() || { width: 1920, height: 1080 };
-    const currentX = viewport.width / 2;
-    const currentY = viewport.height / 2;
-
-    // Calculate bezier curve control points for natural movement
-    const controlPoint1 = {
-        x: currentX + (target.x - currentX) * 0.3 + randomBetween(-50, 50),
-        y: currentY + (target.y - currentY) * 0.1 + randomBetween(-30, 30),
-    };
-    const controlPoint2 = {
-        x: currentX + (target.x - currentX) * 0.7 + randomBetween(-30, 30),
-        y: currentY + (target.y - currentY) * 0.9 + randomBetween(-20, 20),
-    };
-
-    // Move along bezier curve
-    const stepDelay = duration / steps;
-    for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-
-        // Cubic bezier formula
-        const x = Math.pow(1 - t, 3) * currentX +
-            3 * Math.pow(1 - t, 2) * t * controlPoint1.x +
-            3 * (1 - t) * Math.pow(t, 2) * controlPoint2.x +
-            Math.pow(t, 3) * target.x;
-
-        const y = Math.pow(1 - t, 3) * currentY +
-            3 * Math.pow(1 - t, 2) * t * controlPoint1.y +
-            3 * (1 - t) * Math.pow(t, 2) * controlPoint2.y +
-            Math.pow(t, 3) * target.y;
-
-        await page.mouse.move(x, y);
-        await new Promise(resolve => setTimeout(resolve, stepDelay));
-    }
-}
-
-/**
- * Click an element like a human - move to it, pause, then click
- */
-export async function humanClick(
-    page: Page,
-    locator: Locator,
-    options: {
-        moveFirst?: boolean;
-        delayBeforeClick?: boolean;
-    } = {}
-): Promise<void> {
-    const { moveFirst = true, delayBeforeClick = true } = options;
-
-    logger.debug('Human click');
-
-    // Get element bounding box
-    const box = await locator.boundingBox();
-    if (!box) {
-        // Fallback to regular click if we can't get bounding box
-        await locator.click();
-        return;
-    }
-
-    // Calculate click position with slight randomness
-    const clickX = box.x + box.width / 2 + randomBetween(-5, 5);
-    const clickY = box.y + box.height / 2 + randomBetween(-3, 3);
-
-    if (moveFirst) {
-        // Move mouse to element with human-like motion
-        await humanMove(page, { x: clickX, y: clickY });
-    }
-
-    if (delayBeforeClick) {
-        // Short pause before clicking (like human hesitation)
-        await randomDelay(100, 400);
-    }
-
-    // Click with slight position variance
-    await page.mouse.click(clickX, clickY);
-
-    logger.debug('Human click complete');
-}
-
-/**
- * Scroll the page like a human
- */
-export async function humanScroll(
-    page: Page,
-    direction: 'up' | 'down' = 'down',
-    amount: number = 300
-): Promise<void> {
-    const scrollAmount = direction === 'down' ? amount : -amount;
-    const steps = randomBetween(3, 6);
-    const stepAmount = scrollAmount / steps;
-
-    for (let i = 0; i < steps; i++) {
-        await page.mouse.wheel(0, stepAmount + randomBetween(-20, 20));
-        await randomDelay(50, 150);
-    }
-}
-
-/**
- * Simulate reading the page (random delays + occasional scroll)
- */
-export async function simulateReading(page: Page, durationMs: number = 3000): Promise<void> {
     logger.debug({ duration: durationMs }, 'Simulating reading');
 
     const endTime = Date.now() + durationMs;
 
     while (Date.now() < endTime) {
-        // Random action: wait, scroll, or move mouse
         const action = Math.random();
 
-        if (action < 0.7) {
-            // 70% chance: just wait
+        if (action < 0.5) {
+            // 50% chance: just wait
             await randomDelay(500, 1500);
-        } else if (action < 0.9) {
-            // 20% chance: small scroll
-            await humanScroll(page, 'down', randomBetween(50, 150));
+        } else if (action < 0.75) {
+            // 25% chance: small scroll
+            const scrollAmount = randomBetween(50, 200);
+            await page.mouse.wheel(0, scrollAmount);
+            await randomDelay(200, 500);
+        } else if (cursor) {
+            // 25% chance: random mouse movement with ghost cursor
+            try {
+                await cursor.actions.randomMove();
+            } catch {
+                // Ignore errors from random movement
+            }
+            await randomDelay(300, 800);
         } else {
-            // 10% chance: random mouse movement
-            const viewport = page.viewportSize() || { width: 1920, height: 1080 };
-            await humanMove(page, {
-                x: randomBetween(100, viewport.width - 100),
-                y: randomBetween(100, viewport.height - 100),
-            });
+            // Fallback: basic wait
+            await randomDelay(500, 1000);
         }
     }
 
     logger.debug('Reading simulation complete');
+}
+
+// ============================================================
+// CLICK SIMULATION
+// ============================================================
+
+/**
+ * Click an element like a human.
+ * Uses ghost cursor for Bezier curve movement if available,
+ * falls back to basic click with random offset.
+ */
+export async function humanClick(
+    page: Page,
+    locator: Locator,
+    cursor?: Cursor | null
+): Promise<void> {
+    logger.debug('Human click');
+
+    if (cursor) {
+        // Use ghost cursor for natural movement
+        const box = await locator.boundingBox();
+        if (box) {
+            try {
+                await cursor.actions.click({
+                    target: {
+                        x: box.x,
+                        y: box.y,
+                        width: box.width,
+                        height: box.height,
+                    },
+                    waitBeforeClick: [100, 400],
+                });
+                logger.debug('Ghost cursor click complete');
+                return;
+            } catch {
+                logger.debug('Ghost click failed, falling back to basic click');
+            }
+        }
+    }
+
+    // Fallback: basic click with small random offset
+    const box = await locator.boundingBox();
+    if (!box) {
+        await locator.click();
+        return;
+    }
+
+    const clickX = box.x + box.width / 2 + randomBetween(-5, 5);
+    const clickY = box.y + box.height / 2 + randomBetween(-3, 3);
+    await randomDelay(100, 400);
+    await page.mouse.click(clickX, clickY);
+    logger.debug('Fallback click complete');
 }
