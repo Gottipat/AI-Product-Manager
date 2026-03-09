@@ -47,18 +47,18 @@ export const MEETING_CONFIG = {
 // ============================================
 
 export const BOT_CONFIG = {
-  /** Default display name for the bot */
-  DEFAULT_BOT_NAME: 'Meeting AI Bot',
+    /** Default display name for the bot */
+    DEFAULT_BOT_NAME: 'Meeting AI Bot',
 
-  /** User agent string for the bot browser */
-  USER_AGENT:
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    /** User agent string for the bot browser - Mac Chrome to match WebGL fingerprint */
+    USER_AGENT:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
 
-  /** Viewport dimensions for the bot browser */
-  VIEWPORT: {
-    width: 1920,
-    height: 1080,
-  },
+    /** Viewport dimensions for the bot browser */
+    VIEWPORT: {
+        width: 1920,
+        height: 1080,
+    },
 } as const;
 
 // ============================================
