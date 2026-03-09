@@ -12,6 +12,8 @@
 
 import 'dotenv/config';
 import pino from 'pino';
+import * as fs from 'fs';
+import * as path from 'path';
 import { BOT_CONFIG } from '@meeting-ai/shared';
 import { BrowserLauncher, BrowserSession } from './browser/index.js';
 import { MeetJoiner, CaptionsController, ParticipantTracker } from './meet/index.js';
@@ -135,6 +137,18 @@ export async function main(): Promise<void> {
                     flushIntervalMs: 5000,
                 });
 
+                // Ensure transcripts directory exists
+                const transcriptsDir = path.resolve(process.cwd(), 'transcripts');
+                if (!fs.existsSync(transcriptsDir)) {
+                    fs.mkdirSync(transcriptsDir, { recursive: true });
+                }
+
+                // Create a unique transcript file for this session
+                const transcriptFile = path.resolve(transcriptsDir, `transcript-${meetingId}.txt`);
+                const startTimeStr = new Date().toLocaleString();
+                fs.writeFileSync(transcriptFile, `=== Transcript for Meeting ${meetingId} ===\nStarted at: ${startTimeStr}\n\n`, { encoding: 'utf-8' });
+                logger.info({ file: transcriptFile }, 'Transcript will be saved locally');
+
                 // Log batches when they're created
                 transcriptBuffer.onBatch((batch) => {
                     logger.info(
@@ -146,8 +160,15 @@ export async function main(): Promise<void> {
                         '📝 Transcript batch ready'
                     );
 
-                    // Log individual events for debugging
+                    // Append individual events to the local log file
                     for (const event of batch.events) {
+                        const timeStr = new Date(event.timestamp).toLocaleTimeString();
+                        const logLine = `[${timeStr}] ${event.speaker}: ${event.text}\n`;
+
+                        // Append to the file
+                        fs.appendFileSync(transcriptFile, logLine, { encoding: 'utf-8' });
+
+                        // Log to console for debugging
                         logger.info(
                             {
                                 speaker: event.speaker,
