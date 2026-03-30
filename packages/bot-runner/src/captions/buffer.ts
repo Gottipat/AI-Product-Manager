@@ -3,11 +3,12 @@
  * @description Buffers caption events and creates batches for streaming to backend
  */
 
-import { v4 as uuidv4 } from 'uuid';
 import { TranscriptEvent, TranscriptBatch } from '@meeting-ai/shared';
 import pino from 'pino';
-import { RawCaption } from './parser.js';
+import { v4 as uuidv4 } from 'uuid';
+
 import { SpeakerTracker } from './attribution.js';
+import { RawCaption } from './parser.js';
 
 const logger = pino({ name: 'caption-buffer' });
 
@@ -88,7 +89,7 @@ export class TranscriptBuffer {
         const speaker = this.speakerTracker.getOrCreateSpeaker(caption.speaker);
 
         // Determine the text to store
-        let eventText = caption.text;
+        const eventText = caption.text;
         let isFinal = true;
 
         // If this is a continuation, only store the new part

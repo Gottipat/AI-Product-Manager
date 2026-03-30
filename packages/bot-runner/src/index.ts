@@ -15,13 +15,14 @@
  */
 
 import 'dotenv/config';
-import pino from 'pino';
 import { BOT_CONFIG } from '@meeting-ai/shared';
-import { BrowserLauncher } from './browser/index.js';
-import { MeetJoiner, CaptionsController, ParticipantTracker } from './meet/index.js';
-import { CaptionParser, TranscriptBuffer } from './captions/index.js';
-import { AuthManager } from './auth/index.js';
+import pino from 'pino';
+
 import { BackendClient } from './api/index.js';
+import { AuthManager } from './auth/index.js';
+import { BrowserLauncher } from './browser/index.js';
+import { CaptionParser, TranscriptBuffer } from './captions/index.js';
+import { MeetJoiner, CaptionsController, ParticipantTracker } from './meet/index.js';
 
 const logger = pino({
     name: 'bot-runner',

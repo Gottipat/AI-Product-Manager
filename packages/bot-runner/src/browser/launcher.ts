@@ -3,9 +3,9 @@
  * @description Playwright browser management for Google Meet bot
  */
 
-import { chromium, Browser, BrowserContext, LaunchOptions } from 'playwright';
 import { BOT_CONFIG } from '@meeting-ai/shared';
 import pino from 'pino';
+import { chromium, Browser, BrowserContext, LaunchOptions } from 'playwright';
 
 const logger = pino({ name: 'browser-launcher' });
 
@@ -127,7 +127,6 @@ export class BrowserLauncher {
 
             // 4. Override navigator.permissions.query to always resolve
             const originalQuery = window.navigator.permissions.query;
-            // @ts-ignore
             window.navigator.permissions.query = (parameters: PermissionDescriptor) => {
                 if (parameters.name === 'notifications') {
                     return Promise.resolve({ state: Notification.permission, onchange: null } as PermissionStatus);
@@ -136,14 +135,14 @@ export class BrowserLauncher {
             };
 
             // 5. Add chrome runtime object (important for detection bypass)
-            // @ts-ignore
+            // @ts-expect-error window.chrome is not defined in standard lib
             if (!window.chrome) {
-                // @ts-ignore
+                // @ts-expect-error window.chrome is not defined in standard lib
                 window.chrome = {};
             }
-            // @ts-ignore
+            // @ts-expect-error window.chrome is not defined in standard lib
             if (!window.chrome.runtime) {
-                // @ts-ignore
+                // @ts-expect-error window.chrome is not defined in standard lib
                 window.chrome.runtime = {
                     connect: () => { },
                     sendMessage: () => { },
@@ -174,7 +173,7 @@ export class BrowserLauncher {
 
             // 8. Ensure window.Notification exists
             if (!window.Notification) {
-                // @ts-ignore
+                // @ts-expect-error Readonly property override for mock
                 window.Notification = {
                     permission: 'default',
                     requestPermission: () => Promise.resolve('default'),

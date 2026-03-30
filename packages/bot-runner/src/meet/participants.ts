@@ -3,9 +3,9 @@
  * @description Track participant join/leave events in Google Meet
  */
 
+import pino from 'pino';
 import { Page } from 'playwright';
 import { v4 as uuidv4 } from 'uuid';
-import pino from 'pino';
 
 const logger = pino({ name: 'meet-participants' });
 
@@ -170,7 +170,7 @@ export class ParticipantTracker {
             }
 
             // Check for participants who left
-            for (const [_id, participant] of this.participants) {
+            for (const [, participant] of this.participants) {
                 if (!participant.leftAt && !currentNameSet.has(participant.displayName)) {
                     // Participant left
                     participant.leftAt = new Date();

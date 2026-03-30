@@ -3,8 +3,8 @@
  * @description Enable/disable captions and manage caption settings in Google Meet
  */
 
-import { Page } from 'playwright';
 import pino from 'pino';
+import { Page } from 'playwright';
 
 const logger = pino({ name: 'meet-captions' });
 

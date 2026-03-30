@@ -3,9 +3,9 @@
  * @description Manages browser page state and session tracking for bot control
  */
 
+import pino from 'pino';
 import { BrowserContext, Page, ConsoleMessage } from 'playwright';
 import { v4 as uuidv4 } from 'uuid';
-import pino from 'pino';
 
 const logger = pino({ name: 'browser-session' });
 

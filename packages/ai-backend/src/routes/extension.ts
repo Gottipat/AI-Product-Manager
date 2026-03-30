@@ -5,6 +5,7 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+
 import { meetingRepository, type NewMeeting } from '../db/repositories/meeting.repository.js';
 
 export async function extensionRoutes(server: FastifyInstance): Promise<void> {

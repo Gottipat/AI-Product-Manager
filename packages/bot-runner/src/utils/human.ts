@@ -10,9 +10,9 @@
  *   - Clicks random positions within elements
  */
 
-import { Page, Locator } from 'playwright';
 import { createCursor, Cursor } from 'ghost-cursor-playwright';
 import pino from 'pino';
+import { Page, Locator } from 'playwright';
 
 const logger = pino({ name: 'human-behavior' });
 

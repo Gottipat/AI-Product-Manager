@@ -3,9 +3,10 @@
  * @description Handles the meeting join flow: navigate, enter name, request to join, wait for admission
  */
 
-import { Page } from 'playwright';
 import { BOT_CONFIG, MEETING_CONFIG } from '@meeting-ai/shared';
 import pino from 'pino';
+import { Page } from 'playwright';
+
 import {
     createGhostCursor,
     humanType,

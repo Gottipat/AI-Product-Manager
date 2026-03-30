@@ -3,8 +3,8 @@
  * @description Parses Google Meet captions from the DOM using MutationObserver
  */
 
-import { Page } from 'playwright';
 import pino from 'pino';
+import { Page } from 'playwright';
 
 const logger = pino({ name: 'caption-parser' });
 

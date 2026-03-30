@@ -1,5 +1,6 @@
-import { Page } from 'playwright';
 import pino from 'pino';
+import { Page } from 'playwright';
+
 import { humanType, humanClick, mediumDelay, randomDelay, simulateReading } from '../utils/human.js';
 
 const logger = pino({ name: 'auth-manager' });
@@ -159,7 +160,9 @@ export class AuthManager {
             const url = this.page.url();
             const title = await this.page.title();
             logger.debug({ url, title }, `Auth Debug state: ${reason}`);
-        } catch (e) { }
+        } catch (e) {
+            // Ignore if page is closed
+        }
     }
 }
 
