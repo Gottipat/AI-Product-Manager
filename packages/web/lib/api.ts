@@ -3,7 +3,7 @@
  * @description Centralized API client for backend communication
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api/v1';
 
 // Future: shared response wrapper
 // interface ApiResponse<T> { success?: boolean; error?: string; data?: T; }
@@ -63,6 +63,7 @@ export const projectsApi = {
       project: Project;
       meetings: Meeting[];
       items: MeetingItem[];
+      moms: Record<string, MoM>;
       stats: ProjectStats;
     }>(`/projects/${id}`),
 
@@ -103,6 +104,54 @@ export const ragApi = {
       method: 'POST',
       body: JSON.stringify({ query, meetingId: projectId, maxTokens: 8000 }),
     }),
+};
+
+// Bot API
+export const botApi = {
+  join: (meetLink: string, meetingTitle?: string) =>
+    apiFetch<{ sessionId: string; status: string; message: string }>('/bot/join', {
+      method: 'POST',
+      body: JSON.stringify({ meetLink, meetingTitle }),
+    }),
+
+  status: (sessionId: string) =>
+    apiFetch<{
+      sessionId: string;
+      status: string;
+      meetLink: string;
+      startedAt: string;
+      recentLogs: string[];
+    }>(`/bot/status/${sessionId}`),
+
+  stop: (sessionId: string) =>
+    apiFetch<{ message: string; status: string }>(`/bot/stop/${sessionId}`, {
+      method: 'POST',
+    }),
+
+  sessions: () =>
+    apiFetch<{
+      sessions: Array<{
+        sessionId: string;
+        status: string;
+        meetLink: string;
+        startedAt: string;
+      }>;
+    }>('/bot/sessions'),
+};
+
+// Transcript Upload API
+export const transcriptApi = {
+  upload: (projectId: string, title: string, transcript: string) =>
+    apiFetch<UploadResult>(`/projects/${projectId}/upload-transcript`, {
+      method: 'POST',
+      body: JSON.stringify({ title, transcript }),
+    }),
+};
+
+// MoM API
+export const momApi = {
+  getByMeeting: (meetingId: string) =>
+    apiFetch<{ mom: MoM }>(`/meetings/${meetingId}/mom`),
 };
 
 // Types
@@ -170,3 +219,30 @@ export interface SearchResult {
   meetingId: string;
   type: string;
 }
+
+export interface MoM {
+  id: string;
+  meetingId: string;
+  executiveSummary?: string;
+  detailedSummary?: string;
+  attendanceSummary?: Record<string, unknown>;
+  aiModelVersion?: string;
+  overallConfidence?: number;
+  processingTimeMs?: number;
+  generatedAt: string;
+}
+
+export interface UploadResult {
+  success: boolean;
+  meetingId: string;
+  transcriptEventsCreated: number;
+  momGeneration: {
+    success: boolean;
+    momId: string | null;
+    highlightsCreated: number;
+    itemsCreated: number;
+    processingTimeMs: number;
+    error?: string;
+  };
+}
+

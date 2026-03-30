@@ -6,7 +6,7 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
 
-import { meetingStatusEnum, meetingTypeEnum } from './enums';
+import { captureSourceEnum, meetingStatusEnum, meetingTypeEnum } from './enums';
 import { organizations, projects } from './organizations';
 
 // Recurring meeting series
@@ -37,6 +37,7 @@ export const meetings = pgTable('meetings', {
   durationMinutes: integer('duration_minutes'),
   totalTranscriptEvents: integer('total_transcript_events').default(0),
   botSessionId: text('bot_session_id'),
+  captureSource: captureSourceEnum('capture_source').default('bot').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

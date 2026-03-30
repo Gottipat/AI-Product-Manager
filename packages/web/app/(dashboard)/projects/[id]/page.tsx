@@ -5,8 +5,10 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ChatInterface } from '@/components/chat/ChatInterface';
+import { MoMDisplay } from '@/components/mom/MoMDisplay';
 import { TaskList } from '@/components/projects/TaskList';
-import { projectsApi, Project, Meeting, MeetingItem, ProjectStats } from '@/lib/api';
+import { TranscriptUpload } from '@/components/transcript/TranscriptUpload';
+import { projectsApi, botApi, Project, Meeting, MeetingItem, MoM, ProjectStats } from '@/lib/api';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -14,14 +16,20 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
 
   const [project, setProject] = useState<Project | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [items, setItems] = useState<MeetingItem[]>([]);
+  const [moms, setMoms] = useState<Record<string, MoM>>({});
   const [stats, setStats] = useState<ProjectStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'action_item' | 'decision' | 'blocker'>('all');
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [meetingLink, setMeetingLink] = useState('');
+
+  // Bot state
+  const [botSessionId, setBotSessionId] = useState<string | null>(null);
+  const [botStatus, setBotStatus] = useState<string>('idle');
+  const [botStarting, setBotStarting] = useState(false);
 
   useEffect(() => {
     loadProject();
@@ -33,6 +41,7 @@ export default function ProjectDetailPage() {
       setProject(res.project);
       setMeetings(res.meetings);
       setItems(res.items);
+      setMoms(res.moms || {});
       setStats(res.stats);
     } catch (err) {
       console.error('Failed to load project:', err);
@@ -51,6 +60,52 @@ export default function ProjectDetailPage() {
       console.error('Failed to add link:', err);
     }
   };
+
+  // Bot handlers
+  const handleStartBot = async () => {
+    if (!project?.googleMeetLink) return;
+    setBotStarting(true);
+    try {
+      const res = await botApi.join(project.googleMeetLink, project.name);
+      setBotSessionId(res.sessionId);
+      setBotStatus('starting');
+    } catch (err) {
+      console.error('Failed to start bot:', err);
+      setBotStatus('error');
+    } finally {
+      setBotStarting(false);
+    }
+  };
+
+  const handleStopBot = async () => {
+    if (!botSessionId) return;
+    try {
+      await botApi.stop(botSessionId);
+      setBotStatus('stopped');
+      setBotSessionId(null);
+    } catch (err) {
+      console.error('Failed to stop bot:', err);
+    }
+  };
+
+  // Poll bot status
+  useEffect(() => {
+    if (!botSessionId || ['stopped', 'error', 'idle'].includes(botStatus)) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await botApi.status(botSessionId);
+        setBotStatus(res.status);
+        if (['stopped', 'error'].includes(res.status)) {
+          clearInterval(interval);
+        }
+      } catch {
+        clearInterval(interval);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [botSessionId, botStatus]);
 
   const filteredItems =
     activeTab === 'all' ? items : items.filter((item) => item.itemType === activeTab);
@@ -100,22 +155,35 @@ export default function ProjectDetailPage() {
           {project.description && <p className="text-gray-400">{project.description}</p>}
         </div>
 
-        {!project.googleMeetLink && (
+        <div className="flex items-center gap-3">
+          {/* Upload Transcript Button */}
           <button
-            onClick={() => setShowLinkModal(true)}
-            className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition flex items-center gap-2"
+            onClick={() => setShowUploadModal(true)}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-cyan-400 hover:from-cyan-500/30 hover:to-blue-500/30 transition flex items-center gap-2 font-medium"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
-            Add Meeting Link
+            Upload Transcript
           </button>
-        )}
+
+          {!project.googleMeetLink && (
+            <button
+              onClick={() => setShowLinkModal(true)}
+              className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                />
+              </svg>
+              Add Meeting Link
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -140,37 +208,116 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Meeting Link Display */}
+      {/* Meeting Link + Capture Options */}
       {project.googleMeetLink && (
-        <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-4 mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-purple-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm text-gray-400">Google Meet Link</p>
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
+          <div className="flex flex-col md:flex-row gap-6">
+
+            {/* Left: Meeting Info */}
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Meeting Link
+              </h3>
               <a
                 href={project.googleMeetLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-purple-400 hover:text-purple-300 transition"
+                className="text-purple-400 hover:text-purple-300 transition text-lg block mb-2 break-all"
               >
                 {project.googleMeetLink}
               </a>
+              <p className="text-sm text-gray-400">
+                Join this link to start your meeting. You can capture transcripts using either the AI Bot or the Chrome Extension.
+              </p>
+            </div>
+
+            {/* Right: Capture Modes */}
+            <div className="flex-1 space-y-4">
+
+              {/* Option 1: Bot (Server-side) */}
+              <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-white font-medium flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                    Option 1: AI Bot (Cloud)
+                  </h4>
+                  {botStatus !== 'idle' && botStatus !== 'stopped' && (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full ${botStatus === 'in_meeting'
+                          ? 'bg-green-400 animate-pulse'
+                          : botStatus === 'error'
+                            ? 'bg-red-400'
+                            : 'bg-yellow-400 animate-pulse'
+                          }`}
+                      />
+                      <span className="text-sm text-gray-300 capitalize">{botStatus.replace('_', ' ')}</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mb-4 h-8">
+                  Sends an invisible bot to join the meeting. Works best if you are the host and can admit it.
+                </p>
+                <div className="flex justify-end">
+                  {botStatus === 'idle' || botStatus === 'stopped' || botStatus === 'error' ? (
+                    <button
+                      onClick={handleStartBot}
+                      disabled={botStarting}
+                      className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm font-medium hover:bg-white/20 disabled:opacity-50 transition flex items-center gap-2"
+                    >
+                      {botStarting ? 'Starting...' : botStatus === 'error' ? 'Retry Bot' : 'Join with Bot'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStopBot}
+                      className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 text-sm font-medium hover:bg-red-500/30 transition flex items-center gap-2"
+                    >
+                      Stop Bot
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Option 2: Chrome Extension (Client-side) */}
+              <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-xl p-4">
+                <h4 className="text-white font-medium flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                  Option 2: Browser Extension
+                </h4>
+                <p className="text-xs text-gray-400 mb-4 h-8">
+                  Capture directly from your tab. Use this if the bot is blocked by organization settings.
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-cyan-400 border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 rounded">No admit required</span>
+                  <button
+                    onClick={() => {
+                      alert('To use the extension:\n1. Open the meeting link\n2. Click the Meeting AI extension icon in Chrome\n3. Select this project from the dropdown\n4. Click "Start Capture"');
+                    }}
+                    className="px-4 py-2 rounded-lg bg-cyan-500 text-white text-sm font-medium hover:bg-cyan-600 transition"
+                  >
+                    How to use
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MoM Section */}
+      {Object.keys(moms).length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Minutes of Meeting
+          </h2>
+          <MoMDisplay moms={moms} meetings={meetings} />
         </div>
       )}
 
@@ -188,11 +335,10 @@ export default function ProjectDetailPage() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
-                  activeTab === tab
-                    ? 'bg-purple-500 text-white'
-                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${activeTab === tab
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                  }`}
               >
                 {tab === 'all'
                   ? 'All'
@@ -252,6 +398,15 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Upload Transcript Modal */}
+      {showUploadModal && (
+        <TranscriptUpload
+          projectId={projectId}
+          onClose={() => setShowUploadModal(false)}
+          onSuccess={loadProject}
+        />
       )}
     </div>
   );

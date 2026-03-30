@@ -48,6 +48,9 @@ export class BrowserLauncher {
 
         const launchOptions: LaunchOptions = {
             headless: this.options.headless ?? false,
+            // Use real Chrome instead of Playwright's Chromium
+            // This bypasses Google Meet's detection of automation browsers
+            channel: 'chrome',
             ignoreDefaultArgs: ['--enable-automation'],
             args: [
                 // === WINDOW SIZE (ensure full UI visibility) ===

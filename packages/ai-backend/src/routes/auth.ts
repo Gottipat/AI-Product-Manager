@@ -34,7 +34,7 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
   /**
    * POST /auth/signup - Create a new user account
    */
-  server.post('/auth/signup', async (request: FastifyRequest, reply: FastifyReply) => {
+  server.post('/api/v1/auth/signup', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = signupSchema.parse(request.body);
 
@@ -71,7 +71,7 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
   /**
    * POST /auth/signin - Login with email and password
    */
-  server.post('/auth/signin', async (request: FastifyRequest, reply: FastifyReply) => {
+  server.post('/api/v1/auth/signin', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = signinSchema.parse(request.body);
 
@@ -107,7 +107,7 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
   /**
    * POST /auth/logout - Clear auth cookie
    */
-  server.post('/auth/logout', async (_request: FastifyRequest, reply: FastifyReply) => {
+  server.post('/api/v1/auth/logout', async (_request: FastifyRequest, reply: FastifyReply) => {
     reply.clearCookie('auth_token', { path: '/' });
     return reply.send({ success: true });
   });
@@ -115,7 +115,7 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
   /**
    * GET /auth/me - Get current user profile
    */
-  server.get('/auth/me', async (request: FastifyRequest, reply: FastifyReply) => {
+  server.get('/api/v1/auth/me', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const token = request.cookies.auth_token;
 

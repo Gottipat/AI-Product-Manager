@@ -69,3 +69,10 @@ export const highlightTypeEnum = pgEnum('highlight_type', [
   'notable_quote',
   'outcome',
 ]);
+
+// How the meeting transcript was captured
+export const captureSourceEnum = pgEnum('capture_source', [
+  'bot',
+  'extension',
+  'manual',
+]);

@@ -73,7 +73,15 @@ export interface Meeting {
 
   /** Organization/team this meeting belongs to */
   organizationId?: string;
+
+  /** How this meeting's transcript was captured */
+  captureSource?: CaptureSource;
 }
+
+/**
+ * How the meeting transcript was captured
+ */
+export type CaptureSource = 'bot' | 'extension' | 'manual';
 
 /**
  * Meeting status enum

@@ -14,6 +14,7 @@ interface CreateMeetingBody {
   organizationId?: string;
   meetingType?: string;
   startTime?: string;
+  captureSource?: 'bot' | 'extension' | 'manual';
 }
 
 interface UpdateStatusBody {
@@ -32,7 +33,7 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
    * Create a new meeting
    */
   fastify.post<{ Body: CreateMeetingBody }>('/api/v1/meetings', async (request, reply) => {
-    const { title, googleMeetLink, organizationId, meetingType, startTime } = request.body;
+    const { title, googleMeetLink, organizationId, meetingType, startTime, captureSource } = request.body;
 
     if (!title || !googleMeetLink) {
       return reply.status(400).send({ error: 'title and googleMeetLink are required' });
@@ -45,6 +46,7 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
       meetingType: (meetingType as NewMeeting['meetingType']) || 'standup',
       startTime: startTime ? new Date(startTime) : null,
       status: 'scheduled',
+      captureSource: (captureSource as NewMeeting['captureSource']) || 'bot',
     };
 
     const meeting = await meetingRepository.create(meetingData);
