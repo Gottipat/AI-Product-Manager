@@ -37,13 +37,13 @@ src/
 
 The bot simulates human behavior to avoid detection:
 
-| Feature | Description |
-|---------|-------------|
-| **Human Typing** | Types each character with 50-150ms delays, occasional typos |
-| **Mouse Movements** | Bezier curve movements (not straight lines) |
-| **Random Delays** | Pauses between actions (0.5-3s) |
-| **Page Reading** | Simulates reading before interacting |
-| **Click Behavior** | Moves to element, pauses, then clicks |
+| Feature             | Description                                                 |
+| ------------------- | ----------------------------------------------------------- |
+| **Human Typing**    | Types each character with 50-150ms delays, occasional typos |
+| **Mouse Movements** | Bezier curve movements (not straight lines)                 |
+| **Random Delays**   | Pauses between actions (0.5-3s)                             |
+| **Page Reading**    | Simulates reading before interacting                        |
+| **Click Behavior**  | Moves to element, pauses, then clicks                       |
 
 ### Usage
 
@@ -102,11 +102,13 @@ LOG_LEVEL=info
 ## Known Issues
 
 ### "Can't join" Error
+
 - First load often shows "can't join" - bot auto-reloads
 - Sometimes requires 2-3 reload attempts
 - Consider using authenticated Google profile for reliability
 
 ### Transcript Capture
+
 - DOM-based caption parsing may have outdated selectors
 - Audio transcription (Whisper API) is planned future work
 
@@ -128,4 +130,4 @@ For 1000+ users, see the recommended architecture:
 
 ⚠️ **Visible participant**: Bot joins as a visible participant  
 ⚠️ **User consent**: Host must admit the bot from waiting room  
-⚠️ **Transparency**: Bot display name clearly indicates it's AI  
+⚠️ **Transparency**: Bot display name clearly indicates it's AI

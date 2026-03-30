@@ -35,10 +35,7 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
    */
   server.get('/api/v1/projects', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const allProjects = await db
-        .select()
-        .from(projects)
-        .orderBy(desc(projects.updatedAt));
+      const allProjects = await db.select().from(projects).orderBy(desc(projects.updatedAt));
 
       // Get meeting/task counts
       const projectsWithCounts = await Promise.all(
@@ -112,11 +109,7 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
     try {
       const { id } = request.params as { id: string };
 
-      const [project] = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, id))
-        .limit(1);
+      const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
 
       if (!project) {
         return reply.status(404).send({ error: 'Project not found' });
@@ -145,11 +138,7 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
         projectItems.push(...items);
 
         // Fetch MoM for this meeting
-        const [mom] = await db
-          .select()
-          .from(moms)
-          .where(eq(moms.meetingId, meeting.id))
-          .limit(1);
+        const [mom] = await db.select().from(moms).where(eq(moms.meetingId, meeting.id)).limit(1);
         if (mom) {
           projectMoms[meeting.id] = mom;
         }
@@ -181,11 +170,7 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       const body = updateProjectSchema.parse(request.body);
 
-      const [existing] = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, id))
-        .limit(1);
+      const [existing] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
 
       if (!existing) {
         return reply.status(404).send({ error: 'Project not found' });
@@ -213,15 +198,9 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
   server.post('/api/v1/projects/:id/link', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { id } = request.params as { id: string };
-      const { googleMeetLink } = z
-        .object({ googleMeetLink: z.string().url() })
-        .parse(request.body);
+      const { googleMeetLink } = z.object({ googleMeetLink: z.string().url() }).parse(request.body);
 
-      const [existing] = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, id))
-        .limit(1);
+      const [existing] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
 
       if (!existing) {
         return reply.status(404).send({ error: 'Project not found' });
@@ -250,11 +229,7 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
     try {
       const { id } = request.params as { id: string };
 
-      const [existing] = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, id))
-        .limit(1);
+      const [existing] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
 
       if (!existing) {
         return reply.status(404).send({ error: 'Project not found' });

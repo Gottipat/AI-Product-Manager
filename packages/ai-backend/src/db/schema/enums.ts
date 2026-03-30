@@ -71,8 +71,4 @@ export const highlightTypeEnum = pgEnum('highlight_type', [
 ]);
 
 // How the meeting transcript was captured
-export const captureSourceEnum = pgEnum('capture_source', [
-  'bot',
-  'extension',
-  'manual',
-]);
+export const captureSourceEnum = pgEnum('capture_source', ['bot', 'extension', 'manual']);

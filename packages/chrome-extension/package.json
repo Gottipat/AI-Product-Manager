@@ -1,13 +1,13 @@
 {
-    "name": "@meeting-ai/chrome-extension",
-    "version": "1.0.0",
-    "private": true,
-    "description": "Chrome extension for capturing Google Meet transcripts",
-    "scripts": {
-        "build": "echo 'Extension uses vanilla JS — no build step needed'",
-        "dev": "echo 'Load unpacked extension from chrome://extensions'",
-        "lint": "echo 'Skipping extension lint'",
-        "test": "echo 'No tests yet'",
-        "typecheck": "echo 'Vanilla JS — no typecheck'"
-    }
+  "name": "@meeting-ai/chrome-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome extension for capturing Google Meet transcripts",
+  "scripts": {
+    "build": "echo 'Extension uses vanilla JS — no build step needed'",
+    "dev": "echo 'Load unpacked extension from chrome://extensions'",
+    "lint": "echo 'Skipping extension lint'",
+    "test": "echo 'No tests yet'",
+    "typecheck": "echo 'Vanilla JS — no typecheck'"
+  }
 }

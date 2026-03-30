@@ -23,7 +23,7 @@ export type { Cursor };
  * Random number between min and max (inclusive)
  */
 function randomBetween(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 // ============================================================
@@ -34,30 +34,30 @@ function randomBetween(min: number, max: number): number {
  * Random delay - simulates human pause
  */
 export async function randomDelay(minMs: number = 500, maxMs: number = 2000): Promise<void> {
-    const delay = randomBetween(minMs, maxMs);
-    logger.debug({ delay }, 'Human delay');
-    await new Promise(resolve => setTimeout(resolve, delay));
+  const delay = randomBetween(minMs, maxMs);
+  logger.debug({ delay }, 'Human delay');
+  await new Promise((resolve) => setTimeout(resolve, delay));
 }
 
 /**
  * Short delay for between-action pauses
  */
 export async function shortDelay(): Promise<void> {
-    await randomDelay(300, 800);
+  await randomDelay(300, 800);
 }
 
 /**
  * Medium delay for "thinking" pauses
  */
 export async function mediumDelay(): Promise<void> {
-    await randomDelay(1000, 2500);
+  await randomDelay(1000, 2500);
 }
 
 /**
  * Long delay for "reading" pauses
  */
 export async function longDelay(): Promise<void> {
-    await randomDelay(2000, 4000);
+  await randomDelay(2000, 4000);
 }
 
 // ============================================================
@@ -69,9 +69,9 @@ export async function longDelay(): Promise<void> {
  * The cursor uses Bezier curves and Fitts's Law for realistic movement.
  */
 export async function createGhostCursor(page: Page): Promise<Cursor> {
-    const cursor = await createCursor(page);
-    logger.info('Ghost cursor created (Bezier + Fitts Law)');
-    return cursor;
+  const cursor = await createCursor(page);
+  logger.info('Ghost cursor created (Bezier + Fitts Law)');
+  return cursor;
 }
 
 // ============================================================
@@ -83,73 +83,69 @@ export async function createGhostCursor(page: Page): Promise<Cursor> {
  * Uses ghost cursor to click the field first if available.
  */
 export async function humanType(
-    page: Page,
-    locator: Locator,
-    text: string,
-    cursor?: Cursor | null,
-    options: {
-        minCharDelay?: number;
-        maxCharDelay?: number;
-        mistakeProbability?: number;
-    } = {}
+  page: Page,
+  locator: Locator,
+  text: string,
+  cursor?: Cursor | null,
+  options: {
+    minCharDelay?: number;
+    maxCharDelay?: number;
+    mistakeProbability?: number;
+  } = {}
 ): Promise<void> {
-    const {
-        minCharDelay = 50,
-        maxCharDelay = 150,
-        mistakeProbability = 0.02,
-    } = options;
+  const { minCharDelay = 50, maxCharDelay = 150, mistakeProbability = 0.02 } = options;
 
-    logger.debug({ textLength: text.length }, 'Human typing');
+  logger.debug({ textLength: text.length }, 'Human typing');
 
-    // Use ghost cursor to click the field if available
-    if (cursor) {
-        const box = await locator.boundingBox();
-        if (box) {
-            await cursor.actions.click({
-                target: {
-                    x: box.x,
-                    y: box.y,
-                    width: box.width,
-                    height: box.height,
-                },
-                waitBeforeClick: [100, 300],
-            });
-        } else {
-            await locator.click();
-        }
+  // Use ghost cursor to click the field if available
+  if (cursor) {
+    const box = await locator.boundingBox();
+    if (box) {
+      await cursor.actions.click({
+        target: {
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height,
+        },
+        waitBeforeClick: [100, 300],
+      });
     } else {
-        await locator.click();
+      await locator.click();
     }
-    await shortDelay();
+  } else {
+    await locator.click();
+  }
+  await shortDelay();
 
-    // Clear any existing text
-    await locator.fill('');
-    await shortDelay();
+  // Clear any existing text
+  await locator.fill('');
+  await shortDelay();
 
-    // Type each character with human-like timing
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        if (!char) continue;
+  // Type each character with human-like timing
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (!char) continue;
 
-        // Simulate occasional typo and backspace
-        if (Math.random() < mistakeProbability && i > 0) {
-            const wrongChar = String.fromCharCode(char.charCodeAt(0) + randomBetween(-2, 2));
-            await page.keyboard.type(wrongChar);
-            await randomDelay(100, 300);
-            await page.keyboard.press('Backspace');
-            await randomDelay(50, 150);
-        }
-
-        await page.keyboard.type(char);
-        await randomDelay(minCharDelay, maxCharDelay);
-
-        // Occasional longer pause (thinking)
-        if (Math.random() < 0.05) {
-            await randomDelay(200, 500);
-        }
+    // Simulate occasional typo and backspace
+    if (Math.random() < mistakeProbability && i > 0) {
+      const wrongChar = String.fromCharCode(char.charCodeAt(0) + randomBetween(-2, 2));
+      await page.keyboard.type(wrongChar);
+      await randomDelay(100, 300);
+      await page.keyboard.press('Backspace');
+      await randomDelay(50, 150);
     }
 
-    logger.debug('Human typing complete');
+    await page.keyboard.type(char);
+    await randomDelay(minCharDelay, maxCharDelay);
+
+    // Occasional longer pause (thinking)
+    if (Math.random() < 0.05) {
+      await randomDelay(200, 500);
+    }
+  }
+
+  logger.debug('Human typing complete');
 }
 
 // ============================================================
@@ -161,40 +157,40 @@ export async function humanType(
  * Uses ghost cursor for natural random mouse movements.
  */
 export async function simulateReading(
-    page: Page,
-    durationMs: number = 3000,
-    cursor?: Cursor | null
+  page: Page,
+  durationMs: number = 3000,
+  cursor?: Cursor | null
 ): Promise<void> {
-    logger.debug({ duration: durationMs }, 'Simulating reading');
+  logger.debug({ duration: durationMs }, 'Simulating reading');
 
-    const endTime = Date.now() + durationMs;
+  const endTime = Date.now() + durationMs;
 
-    while (Date.now() < endTime) {
-        const action = Math.random();
+  while (Date.now() < endTime) {
+    const action = Math.random();
 
-        if (action < 0.5) {
-            // 50% chance: just wait
-            await randomDelay(500, 1500);
-        } else if (action < 0.75) {
-            // 25% chance: small scroll
-            const scrollAmount = randomBetween(50, 200);
-            await page.mouse.wheel(0, scrollAmount);
-            await randomDelay(200, 500);
-        } else if (cursor) {
-            // 25% chance: random mouse movement with ghost cursor
-            try {
-                await cursor.actions.randomMove();
-            } catch {
-                // Ignore errors from random movement
-            }
-            await randomDelay(300, 800);
-        } else {
-            // Fallback: basic wait
-            await randomDelay(500, 1000);
-        }
+    if (action < 0.5) {
+      // 50% chance: just wait
+      await randomDelay(500, 1500);
+    } else if (action < 0.75) {
+      // 25% chance: small scroll
+      const scrollAmount = randomBetween(50, 200);
+      await page.mouse.wheel(0, scrollAmount);
+      await randomDelay(200, 500);
+    } else if (cursor) {
+      // 25% chance: random mouse movement with ghost cursor
+      try {
+        await cursor.actions.randomMove();
+      } catch {
+        // Ignore errors from random movement
+      }
+      await randomDelay(300, 800);
+    } else {
+      // Fallback: basic wait
+      await randomDelay(500, 1000);
     }
+  }
 
-    logger.debug('Reading simulation complete');
+  logger.debug('Reading simulation complete');
 }
 
 // ============================================================
@@ -207,44 +203,44 @@ export async function simulateReading(
  * falls back to basic click with random offset.
  */
 export async function humanClick(
-    page: Page,
-    locator: Locator,
-    cursor?: Cursor | null
+  page: Page,
+  locator: Locator,
+  cursor?: Cursor | null
 ): Promise<void> {
-    logger.debug('Human click');
+  logger.debug('Human click');
 
-    if (cursor) {
-        // Use ghost cursor for natural movement
-        const box = await locator.boundingBox();
-        if (box) {
-            try {
-                await cursor.actions.click({
-                    target: {
-                        x: box.x,
-                        y: box.y,
-                        width: box.width,
-                        height: box.height,
-                    },
-                    waitBeforeClick: [100, 400],
-                });
-                logger.debug('Ghost cursor click complete');
-                return;
-            } catch {
-                logger.debug('Ghost click failed, falling back to basic click');
-            }
-        }
-    }
-
-    // Fallback: basic click with small random offset
+  if (cursor) {
+    // Use ghost cursor for natural movement
     const box = await locator.boundingBox();
-    if (!box) {
-        await locator.click();
+    if (box) {
+      try {
+        await cursor.actions.click({
+          target: {
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+          },
+          waitBeforeClick: [100, 400],
+        });
+        logger.debug('Ghost cursor click complete');
         return;
+      } catch {
+        logger.debug('Ghost click failed, falling back to basic click');
+      }
     }
+  }
 
-    const clickX = box.x + box.width / 2 + randomBetween(-5, 5);
-    const clickY = box.y + box.height / 2 + randomBetween(-3, 3);
-    await randomDelay(100, 400);
-    await page.mouse.click(clickX, clickY);
-    logger.debug('Fallback click complete');
+  // Fallback: basic click with small random offset
+  const box = await locator.boundingBox();
+  if (!box) {
+    await locator.click();
+    return;
+  }
+
+  const clickX = box.x + box.width / 2 + randomBetween(-5, 5);
+  const clickY = box.y + box.height / 2 + randomBetween(-3, 3);
+  await randomDelay(100, 400);
+  await page.mouse.click(clickX, clickY);
+  logger.debug('Fallback click complete');
 }

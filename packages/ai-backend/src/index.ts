@@ -39,7 +39,11 @@ async function start(): Promise<void> {
       origin: (origin, callback) => {
         const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
         // Allow Chrome extension origins
-        if (!origin || allowedOrigins.includes(origin) || origin.startsWith('chrome-extension://')) {
+        if (
+          !origin ||
+          allowedOrigins.includes(origin) ||
+          origin.startsWith('chrome-extension://')
+        ) {
           callback(null, true);
         } else {
           callback(null, false);
