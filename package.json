@@ -13,6 +13,9 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "ci:local": "./scripts/ci-local.sh",
+    "docker:up": "docker compose --env-file .env.docker up --build",
+    "docker:down": "docker compose --env-file .env.docker down",
+    "docker:bot": "docker compose --env-file .env.docker --profile bot up --build",
     "pre-push": "pnpm run lint && pnpm run format:check && pnpm run build",
     "prepare": "husky",
     "clean": "pnpm -r clean && rm -rf node_modules"

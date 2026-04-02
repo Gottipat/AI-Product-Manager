@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { eq } from 'drizzle-orm';
 import * as jwt from 'jsonwebtoken';
 
+import { DEFAULT_DEV_ORG_ID } from '../db/bootstrap.js';
 import { db } from '../db/index.js';
 import { users, type User, type NewUser } from '../db/schema/users.js';
 
@@ -114,7 +115,7 @@ export async function createUser(
     email,
     passwordHash,
     displayName,
-    organizationId,
+    organizationId: organizationId ?? DEFAULT_DEV_ORG_ID,
   };
 
   const [created] = await db.insert(users).values(newUser).returning();
