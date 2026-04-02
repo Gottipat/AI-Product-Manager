@@ -140,6 +140,50 @@ export class BackendClient {
     await this.post(`/api/v1/meetings/${meetingId}/extract-items`, {});
   }
 
+  /**
+   * Open a WebSocket connection for streaming audio chunks
+   * Returns the WebSocket instance for sending binary audio data
+   */
+  connectAudioStream(meetingId: string): Promise<import('ws').WebSocket> {
+    const wsUrl = this.baseUrl
+      .replace('http://', 'ws://')
+      .replace('https://', 'wss://');
+    const url = `${wsUrl}/api/v1/meetings/${meetingId}/audio-stream`;
+
+    logger.info({ url }, 'Connecting audio stream WebSocket');
+
+    return new Promise((resolve, reject) => {
+      // Dynamic import to avoid issues if ws is not available
+      import('ws').then(({ default: WebSocket }) => {
+        const ws = new WebSocket(url);
+
+        ws.on('open', () => {
+          logger.info({ meetingId }, '✅ Audio stream WebSocket connected');
+          resolve(ws);
+        });
+
+        ws.on('error', (error) => {
+          logger.error({ error, meetingId }, 'Audio stream WebSocket error');
+          reject(error);
+        });
+
+        ws.on('close', (code, reason) => {
+          logger.info({ code, reason: reason.toString(), meetingId }, 'Audio stream WebSocket closed');
+        });
+
+        ws.on('message', (data) => {
+          // Handle any messages from backend (e.g., transcription results)
+          try {
+            const msg = JSON.parse(data.toString());
+            logger.debug({ msg }, 'Received message from audio stream');
+          } catch {
+            // Binary or non-JSON message
+          }
+        });
+      }).catch(reject);
+    });
+  }
+
   // ─── Private helpers ─────────────────────────────────────────
 
   private async post(path: string, body: unknown): Promise<unknown> {

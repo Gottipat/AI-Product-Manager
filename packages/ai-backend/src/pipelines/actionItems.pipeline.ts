@@ -42,7 +42,12 @@ export class ActionItemsPipeline {
       const transcriptText = await transcriptRepository.getTranscriptText(meetingId);
 
       if (!transcriptText || transcriptText.trim().length === 0) {
-        throw new Error('No transcript available for this meeting');
+        return {
+          success: true,  // It worked, there just wasn't anything to extract
+          itemsCreated: 0,
+          items: [],
+          processingTimeMs: Date.now() - startTime,
+        };
       }
 
       // Extract items via OpenAI
@@ -73,6 +78,47 @@ export class ActionItemsPipeline {
    */
   async extractFromText(transcriptText: string): Promise<ActionItem[]> {
     return await openaiService.extractActionItems(transcriptText);
+  }
+
+  // Live buffer state for real-time extraction
+  private liveBuffers: Record<string, string> = {};
+  private activeExtractions: Record<string, boolean> = {};
+
+  /**
+   * Extract action items from a live chunk of text.
+   * Buffers text internally and only calls LLM when buffer exceeds optimal size.
+   */
+  async extractLiveChunk(meetingId: string, chunkText: string): Promise<void> {
+    if (!this.liveBuffers[meetingId]) {
+      this.liveBuffers[meetingId] = '';
+    }
+
+    // Append to meeting's live buffer
+    this.liveBuffers[meetingId] += '\n' + chunkText;
+
+    // Flush threshold (~60 seconds of speaking is roughly 800 characters)
+    if (this.liveBuffers[meetingId].length < 800) {
+      return; // Buffer not full yet
+    }
+
+    // Prevent concurrent LLM extraction for the same meeting
+    if (this.activeExtractions[meetingId]) {
+      return; 
+    }
+
+    this.activeExtractions[meetingId] = true;
+    const textToAnalyze = this.liveBuffers[meetingId];
+    this.liveBuffers[meetingId] = ''; // clear buffer immediately
+
+    try {
+      const items = await openaiService.extractActionItems(textToAnalyze);
+      await this.saveItems(meetingId, items);
+    } catch (err) {
+      // If it fails, we lost this chunk, but we don't crash the server
+      console.error(`Live extraction failed for meeting ${meetingId}:`, err);
+    } finally {
+      this.activeExtractions[meetingId] = false;
+    }
   }
 
   /**

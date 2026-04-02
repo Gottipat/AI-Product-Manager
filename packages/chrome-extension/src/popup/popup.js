@@ -30,6 +30,8 @@ const els = {
     projectBadgeName: $('projectBadgeName'),
     eventCount: $('eventCount'),
     sentCount: $('sentCount'),
+    audioStatsDisplay: $('audioStatsDisplay'),
+    audioActiveLabel: $('audioActiveLabel'),
     durationDisplay: $('durationDisplay'),
     meetingIdDisplay: $('meetingIdDisplay'),
     stopBtn: $('stopBtn'),
@@ -38,7 +40,7 @@ const els = {
     settingsToggle: $('settingsToggle'),
     settingsPanel: $('settingsPanel'),
     backendUrlInput: $('backendUrlInput'),
-    authTokenInput: $('authTokenInput'),
+    authStatusBadge: $('authStatusBadge'),
     saveSettingsBtn: $('saveSettingsBtn'),
     testConnectionBtn: $('testConnectionBtn'),
     settingsStatus: $('settingsStatus'),
@@ -188,9 +190,6 @@ async function init() {
     if (settings.backendUrl) {
         els.backendUrlInput.value = settings.backendUrl;
     }
-    if (settings.authToken) {
-        els.authTokenInput.value = settings.authToken;
-    }
 
     // 2. Check backend connection and fetch projects
     setConnection('checking', 'Checking backend...');
@@ -198,9 +197,24 @@ async function init() {
 
     if (healthResult?.healthy) {
         setConnection('connected', `Connected to ${healthResult.backendUrl}`);
+        
+        // Update auth status UI
+        if (healthResult.isAuthenticated) {
+            els.authStatusBadge.innerHTML = '✅ Authenticated';
+            els.authStatusBadge.style.color = 'var(--text-success)';
+            els.authStatusBadge.style.borderColor = 'var(--border-success)';
+            els.authStatusBadge.style.backgroundColor = 'var(--bg-success)';
+        } else {
+            els.authStatusBadge.innerHTML = '❌ Please Log into Dashboard';
+            els.authStatusBadge.style.color = 'var(--text-danger)';
+            els.authStatusBadge.style.borderColor = 'var(--border-danger)';
+            els.authStatusBadge.style.backgroundColor = 'var(--bg-danger)';
+        }
+
         await loadProjects();
     } else {
         setConnection('disconnected', 'Backend not reachable');
+        els.authStatusBadge.innerHTML = '⚠️ Offline';
     }
 
     // 3. Detect current tab
@@ -270,16 +284,27 @@ function stopStatsPolling() {
 }
 
 async function updateStats() {
-    const stats = await chrome.storage.local.get(['captionStats']);
+    const stats = await chrome.storage.local.get(['captionStats', 'audioStats']);
     if (stats.captionStats) {
         els.eventCount.textContent = stats.captionStats.totalEvents || 0;
         els.sentCount.textContent = stats.captionStats.totalSentEvents || 0;
+    }
+    if (stats.audioStats) {
+        els.audioStatsDisplay.textContent = stats.audioStats.audioTranscripts || 0;
     }
 
     // Also get status from background
     const bgStatus = await sendToBackground('POPUP_GET_STATUS');
     if (bgStatus) {
         els.sentCount.textContent = bgStatus.totalSentEvents || 0;
+        els.audioStatsDisplay.textContent = bgStatus.audioTranscripts || 0;
+        if (bgStatus.audioActive) {
+            els.audioActiveLabel.innerHTML = '🎙️ Audio Segments';
+            els.audioActiveLabel.style.color = 'var(--text-success)';
+        } else {
+            els.audioActiveLabel.innerHTML = 'Audio Inactive';
+            els.audioActiveLabel.style.color = 'var(--text-muted)';
+        }
         if (bgStatus.currentMeetingId) {
             els.meetingIdDisplay.textContent = shortenId(bgStatus.currentMeetingId);
         }
@@ -293,6 +318,18 @@ async function updateStats() {
 // Start Capture
 els.startBtn.addEventListener('click', async () => {
     if (!currentTabId || !currentMeetUrl) return;
+
+    // Prompt for microphone permission before proceeding
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Permission granted, close the tracks immediately
+        stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+        // If it throws an error in the popup (likely due to Chrome security), route user to options page
+        els.startBtn.innerHTML = 'Mic Permission Required';
+        chrome.runtime.openOptionsPage();
+        return; // Halt if permission denied/failed
+    }
 
     els.startBtn.disabled = true;
     els.startBtn.textContent = 'Starting...';
@@ -371,11 +408,24 @@ els.settingsToggle.addEventListener('click', () => {
 els.saveSettingsBtn.addEventListener('click', async () => {
     const result = await sendToBackground('POPUP_SAVE_SETTINGS', {
         backendUrl: els.backendUrlInput.value,
-        authToken: els.authTokenInput.value,
+        // No more manual auth token saved
     });
 
     if (result?.success) {
         showSettingsStatus('Settings saved ✓', 'success');
+        // Refresh auth status
+        const healthResult = await sendToBackground('POPUP_HEALTH_CHECK');
+        if (healthResult?.isAuthenticated) {
+            els.authStatusBadge.innerHTML = '✅ Authenticated';
+            els.authStatusBadge.style.color = 'var(--text-success)';
+            els.authStatusBadge.style.borderColor = 'var(--border-success)';
+            els.authStatusBadge.style.backgroundColor = 'var(--bg-success)';
+        } else {
+            els.authStatusBadge.innerHTML = '❌ Please Log into Dashboard';
+            els.authStatusBadge.style.color = 'var(--text-danger)';
+            els.authStatusBadge.style.borderColor = 'var(--border-danger)';
+            els.authStatusBadge.style.backgroundColor = 'var(--bg-danger)';
+        }
     } else {
         showSettingsStatus('Failed to save settings', 'error');
     }
@@ -386,7 +436,6 @@ els.testConnectionBtn.addEventListener('click', async () => {
     // Save first so the health check uses the new URL
     await sendToBackground('POPUP_SAVE_SETTINGS', {
         backendUrl: els.backendUrlInput.value,
-        authToken: els.authTokenInput.value,
     });
 
     setConnection('checking', 'Testing connection...');
@@ -394,6 +443,19 @@ els.testConnectionBtn.addEventListener('click', async () => {
 
     if (result?.healthy) {
         setConnection('connected', `Connected to ${result.backendUrl}`);
+        
+        if (result.isAuthenticated) {
+            els.authStatusBadge.innerHTML = '✅ Authenticated';
+            els.authStatusBadge.style.color = 'var(--text-success)';
+            els.authStatusBadge.style.borderColor = 'var(--border-success)';
+            els.authStatusBadge.style.backgroundColor = 'var(--bg-success)';
+        } else {
+            els.authStatusBadge.innerHTML = '❌ Please Log into Dashboard';
+            els.authStatusBadge.style.color = 'var(--text-danger)';
+            els.authStatusBadge.style.borderColor = 'var(--border-danger)';
+            els.authStatusBadge.style.backgroundColor = 'var(--bg-danger)';
+        }
+
         showSettingsStatus('Connection successful ✓', 'success');
     } else {
         setConnection('disconnected', 'Backend not reachable');

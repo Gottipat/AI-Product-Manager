@@ -66,6 +66,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 Projects
               </Link>
+              <Link
+                href="/meetings"
+                className="text-gray-300 hover:text-white transition font-medium"
+              >
+                History
+              </Link>
 
               {/* User Menu */}
               <div className="flex items-center gap-4">

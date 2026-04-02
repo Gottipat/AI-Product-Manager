@@ -3,7 +3,7 @@
   "name": "Meeting AI — Transcript Capture",
   "version": "1.0.0",
   "description": "Capture Google Meet transcripts and stream them to your Meeting AI backend for AI-powered analysis, MoM generation, and action item extraction.",
-  "permissions": ["activeTab", "storage", "tabs"],
+  "permissions": ["activeTab", "storage", "tabs", "cookies", "tabCapture", "offscreen"],
   "host_permissions": ["https://meet.google.com/*", "http://localhost:*/*"],
   "background": {
     "service_worker": "src/background/service-worker.js",
@@ -16,6 +16,10 @@
       "run_at": "document_idle"
     }
   ],
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_icon": {

@@ -4,6 +4,7 @@
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api/v1';
+export const BACKEND_BASE_URL = API_BASE_URL.replace('/api/v1', '');
 
 // Future: shared response wrapper
 // interface ApiResponse<T> { success?: boolean; error?: string; data?: T; }
@@ -154,6 +155,18 @@ export const momApi = {
     apiFetch<{ mom: MoM }>(`/meetings/${meetingId}/mom`),
 };
 
+// Meetings API
+export const meetingsApi = {
+  list: (orgId: string) =>
+    apiFetch<{ meetings: Meeting[] }>(`/organizations/${orgId}/meetings`),
+    
+  get: (meetingId: string) =>
+    apiFetch<{ meeting: Meeting }>(`/meetings/${meetingId}`),
+    
+  getTranscripts: (meetingId: string) =>
+    apiFetch<{ events: TranscriptEvent[] }>(`/meetings/${meetingId}/transcripts`),
+};
+
 // Types
 export interface User {
   id: string;
@@ -187,10 +200,14 @@ export interface CreateProjectInput {
 export interface Meeting {
   id: string;
   title: string;
+  organizationId?: string;
   startTime?: string;
   endTime?: string;
   status: string;
   durationMinutes?: number;
+  captureSource?: string;
+  totalTranscriptEvents?: number;
+  createdAt?: string;
 }
 
 export interface MeetingItem {
@@ -244,5 +261,17 @@ export interface UploadResult {
     processingTimeMs: number;
     error?: string;
   };
+}
+
+export interface TranscriptEvent {
+  id: string;
+  meetingId: string;
+  speaker: string;
+  content: string;
+  sequenceNumber: number;
+  isFinal: boolean;
+  confidence?: number;
+  capturedAt: string;
+  createdAt: string;
 }
 

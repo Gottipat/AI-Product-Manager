@@ -107,6 +107,28 @@ export default function ProjectDetailPage() {
     return () => clearInterval(interval);
   }, [botSessionId, botStatus]);
 
+  // Live Dashboard Polling (Firebase-style seamless sync)
+  useEffect(() => {
+    const hasActiveMeeting = meetings.some(m => ['bot_joining', 'in_progress'].includes(m.status));
+    const isBotActive = !['stopped', 'error', 'idle'].includes(botStatus);
+    
+    // Only poll if there's an active capture happening from extension or bot
+    if (!hasActiveMeeting && !isBotActive) return;
+
+    const interval = setInterval(() => {
+      // Silently fetches latest transcripts, items, and MoMs from DB
+      projectsApi.get(projectId).then(res => {
+        setProject(res.project);
+        setMeetings(res.meetings);
+        setItems(res.items);
+        setMoms(res.moms || {});
+        setStats(res.stats);
+      }).catch(err => console.error('Silent poll failed:', err));
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [meetings, botStatus, projectId]);
+
   const filteredItems =
     activeTab === 'all' ? items : items.filter((item) => item.itemType === activeTab);
 
@@ -320,6 +342,102 @@ export default function ProjectDetailPage() {
           <MoMDisplay moms={moms} meetings={meetings} />
         </div>
       )}
+
+      {/* Captured Meetings (Transcripts) */}
+      <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                 <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                 </svg>
+                 Captured Meetings
+              </h2>
+              <Link href="/meetings" className="text-sm text-indigo-400 hover:text-indigo-300">View All History</Link>
+          </div>
+          {meetings.length === 0 ? (
+              <div className="text-center py-6 bg-white/5 rounded-2xl border border-white/10 text-gray-400">
+                  No meetings captured for this project yet. Use the extension or bot to start capturing.
+              </div>
+          ) : (
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                  <table className="w-full text-sm">
+                      <thead>
+                          <tr className="border-b border-white/10 text-gray-400 text-left">
+                              <th className="px-4 py-3 font-medium w-16">S.No</th>
+                              <th className="px-4 py-3 font-medium">Meeting</th>
+                              <th className="px-4 py-3 font-medium w-24 text-center">Status</th>
+                              <th className="px-4 py-3 font-medium w-28 text-center">Transcript</th>
+                              <th className="px-4 py-3 font-medium w-24 text-center">Audio</th>
+                              <th className="px-4 py-3 font-medium w-28 text-center">Date</th>
+                              <th className="px-4 py-3 font-medium w-20"></th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {meetings.map((meeting, index) => (
+                              <tr key={meeting.id} className="border-b border-white/5 hover:bg-white/5 transition">
+                                  <td className="px-4 py-3 text-gray-400 font-mono">{index + 1}</td>
+                                  <td className="px-4 py-3">
+                                      <Link href={`/meetings/${meeting.id}`} className="text-white hover:text-purple-300 font-medium transition line-clamp-1">
+                                          {meeting.title}
+                                      </Link>
+                                      {meeting.durationMinutes && (
+                                          <span className="text-gray-500 text-xs ml-2">{meeting.durationMinutes} min</span>
+                                      )}
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                      <span className={`px-2 py-0.5 rounded text-xs font-medium inline-flex items-center gap-1.5 ${
+                                          meeting.status === 'in_progress'
+                                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                              : meeting.status === 'completed'
+                                              ? 'bg-white/10 text-gray-300'
+                                              : 'bg-yellow-500/20 text-yellow-400'
+                                      }`}>
+                                          {meeting.status === 'in_progress' && (
+                                              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                                          )}
+                                          {meeting.status === 'in_progress' ? 'Live' : meeting.status}
+                                      </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                      <Link href={`/meetings/${meeting.id}`} className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition text-xs font-medium">
+                                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                                          </svg>
+                                          {meeting.totalTranscriptEvents || 0} events
+                                      </Link>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                      {meeting.status === 'completed' ? (
+                                          <Link href={`/meetings/${meeting.id}`} className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition text-xs font-medium">
+                                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M12 6a6.978 6.978 0 00-2.828 2.828M17.657 6.343a8 8 0 010 11.314" />
+                                              </svg>
+                                              Play
+                                          </Link>
+                                      ) : meeting.status === 'in_progress' ? (
+                                          <span className="text-xs text-gray-500">Recording...</span>
+                                      ) : (
+                                          <span className="text-xs text-gray-600">—</span>
+                                      )}
+                                  </td>
+                                  <td className="px-4 py-3 text-center text-gray-500 text-xs">
+                                      {new Date(meeting.startTime || meeting.createdAt || '').toLocaleDateString()}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                      <Link
+                                          href={`/meetings/${meeting.id}`}
+                                          className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs font-medium hover:bg-purple-500/30 transition"
+                                      >
+                                          View
+                                      </Link>
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          )}
+      </div>
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

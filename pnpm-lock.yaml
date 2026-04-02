@@ -50,6 +50,9 @@ importers:
 
   packages/ai-backend:
     dependencies:
+      '@deepgram/sdk':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@fastify/cookie':
         specifier: ^9.3.0
         version: 9.4.0
@@ -145,6 +148,8 @@ importers:
       vitest:
         specifier: ^1.2.0
         version: 1.6.1(@types/node@20.19.32)
+
+  packages/chrome-extension: {}
 
   packages/shared:
     dependencies:
@@ -496,6 +501,16 @@ packages:
       '@types/conventional-commits-parser': 5.0.2
       chalk: 5.6.2
     dev: true
+
+  /@deepgram/sdk@5.0.0:
+    resolution: {integrity: sha512-x1wMiOgDGqcLEaQpQBQLTtk5mLbXbYgcBEpp7cfJIyEtqdIGgijCZH+a/esiVp+xIcTYYroTxG47RVppZOHbWw==}
+    engines: {node: '>=18.0.0'}
+    dependencies:
+      ws: 8.19.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+    dev: false
 
   /@drizzle-team/brocli@0.10.2:
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}

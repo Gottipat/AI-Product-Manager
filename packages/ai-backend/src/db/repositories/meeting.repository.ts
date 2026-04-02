@@ -52,9 +52,14 @@ export class MeetingRepository {
     id: string,
     status: 'scheduled' | 'bot_joining' | 'in_progress' | 'completed' | 'cancelled' | 'error'
   ) {
+    const updateData: any = { status, updatedAt: new Date() };
+    if (status === 'in_progress') {
+        updateData.startTime = new Date();
+    }
+
     const result = await db
       .update(meetings)
-      .set({ status, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(meetings.id, id))
       .returning();
     return result[0];
@@ -65,9 +70,10 @@ export class MeetingRepository {
    */
   async complete(id: string, endTime = new Date()) {
     const meeting = await this.findById(id);
-    if (!meeting || !meeting.startTime) return null;
+    if (!meeting) return null;
 
-    const durationMinutes = Math.round((endTime.getTime() - meeting.startTime.getTime()) / 60000);
+    const start = meeting.startTime || meeting.createdAt;
+    const durationMinutes = Math.round((endTime.getTime() - start.getTime()) / 60000);
 
     const result = await db
       .update(meetings)
