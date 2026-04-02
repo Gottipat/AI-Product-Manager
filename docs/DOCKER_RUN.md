@@ -34,9 +34,9 @@ Open `.env.docker` and set at least:
 
 ```env
 OPENAI_API_KEY=sk-your-openai-key
-JWT_SECRET=some-long-random-secret
-COOKIE_SECRET=another-long-random-secret
 ```
+
+For local Docker runs, `JWT_SECRET` and `COOKIE_SECRET` already have dev-only defaults. You can leave them as-is unless you specifically want to override them.
 
 Important variables:
 
@@ -48,6 +48,8 @@ Important variables:
   Defaults to `3002`.
 - `WEB_PORT`
   Defaults to `3001`.
+- `JWT_SECRET` and `COOKIE_SECRET`
+  Optional for local Docker. The Compose file provides development defaults.
 
 Optional bot variables:
 
@@ -159,6 +161,10 @@ Common causes:
 - missing `OPENAI_API_KEY`
 - invalid `DATABASE_URL`
 - Postgres still booting
+
+### Do we need Deepgram?
+
+No. This Docker setup does not use Deepgram, and there is no Deepgram configuration in this repo right now.
 
 ### Web cannot call the backend
 
