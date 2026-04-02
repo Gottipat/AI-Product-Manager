@@ -17,6 +17,8 @@ The optional `bot-runner` is available through a Docker Compose profile because 
 - Docker Desktop or Docker Engine with Compose support
 - An OpenAI API key
 
+You do not need PostgreSQL installed on your machine. Docker Compose starts PostgreSQL for you.
+
 Optional for bot mode:
 
 - A Google Meet link
@@ -164,7 +166,9 @@ Common causes:
 
 ### Do we need Deepgram?
 
-No. This Docker setup does not use Deepgram, and there is no Deepgram configuration in this repo right now.
+Not for the normal transcript-upload flow. The current Docker setup works with uploaded transcripts and Google Meet captions using only `OPENAI_API_KEY`.
+
+If you later wire up audio-to-transcript experimentation with Deepgram in this branch, then teammates would also need a `DEEPGRAM_API_KEY`. That is not required for the default Docker flow today.
 
 ### Web cannot call the backend
 
