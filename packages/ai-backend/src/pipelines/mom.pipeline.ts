@@ -236,7 +236,8 @@ export class MoMPipeline {
 
   private buildAttendanceSummary(context: MeetingAnalysisContext) {
     return {
-      participantCount: context.participants?.filter((participant) => !participant.isBot).length ?? 0,
+      participantCount:
+        context.participants?.filter((participant) => !participant.isBot).length ?? 0,
       participants:
         context.participants
           ?.filter((participant) => !participant.isBot)

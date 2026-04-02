@@ -122,7 +122,9 @@ export function parseTranscript(raw: string): ParsedTranscriptResult {
         speaker: speakerMatch[1].trim(),
         content: speakerMatch[2].trim(),
         timestampLabel,
-        capturedAt: timestampLabel ? parseLineTimestamp(timestampLabel, meetingStart) ?? null : null,
+        capturedAt: timestampLabel
+          ? (parseLineTimestamp(timestampLabel, meetingStart) ?? null)
+          : null,
       });
       continue;
     }
@@ -137,7 +139,9 @@ export function parseTranscript(raw: string): ParsedTranscriptResult {
       speaker: 'Unknown Speaker',
       content: contentWithoutTimestamp,
       timestampLabel,
-      capturedAt: timestampLabel ? parseLineTimestamp(timestampLabel, meetingStart) ?? null : null,
+      capturedAt: timestampLabel
+        ? (parseLineTimestamp(timestampLabel, meetingStart) ?? null)
+        : null,
     });
   }
 

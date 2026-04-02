@@ -109,17 +109,21 @@ export interface MeetingAnalysisContext {
   startTime?: string | null | undefined;
   endTime?: string | null | undefined;
   durationMinutes?: number | null | undefined;
-  participants?: Array<{
-    displayName: string;
-    email?: string | null | undefined;
-    isBot?: boolean | undefined;
-  }> | undefined;
-  transcript?: {
-    eventCount: number;
-    speakers: string[];
-    firstCapturedAt?: string | undefined;
-    lastCapturedAt?: string | undefined;
-  } | undefined;
+  participants?:
+    | Array<{
+        displayName: string;
+        email?: string | null | undefined;
+        isBot?: boolean | undefined;
+      }>
+    | undefined;
+  transcript?:
+    | {
+        eventCount: number;
+        speakers: string[];
+        firstCapturedAt?: string | undefined;
+        lastCapturedAt?: string | undefined;
+      }
+    | undefined;
 }
 
 // ============================================================================
@@ -163,9 +167,7 @@ export class OpenAIService {
       `Participants: ${participants.length > 0 ? participants.join(', ') : 'n/a'}`,
       `Transcript Event Count: ${context.transcript?.eventCount ?? 0}`,
       `Transcript Speakers: ${
-        context.transcript?.speakers?.length
-          ? context.transcript.speakers.join(', ')
-          : 'n/a'
+        context.transcript?.speakers?.length ? context.transcript.speakers.join(', ') : 'n/a'
       }`,
       `Transcript First Event: ${context.transcript?.firstCapturedAt ?? 'n/a'}`,
       `Transcript Last Event: ${context.transcript?.lastCapturedAt ?? 'n/a'}`,
@@ -429,7 +431,10 @@ ${transcript}`,
   /**
    * Extract highlights from transcript
    */
-  async extractHighlights(transcript: string, context?: MeetingAnalysisContext): Promise<Highlight[]> {
+  async extractHighlights(
+    transcript: string,
+    context?: MeetingAnalysisContext
+  ): Promise<Highlight[]> {
     const response = await openai.chat.completions.create({
       model: this.model,
       messages: [
