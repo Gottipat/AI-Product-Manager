@@ -81,6 +81,13 @@ export class MomRepository {
   }
 
   /**
+   * Delete all highlights for a specific MoM
+   */
+  async deleteHighlightsByMomId(momId: string) {
+    return db.delete(meetingHighlights).where(eq(meetingHighlights.momId, momId)).returning();
+  }
+
+  /**
    * Get all highlights for a meeting
    */
   async getHighlights(meetingId: string) {

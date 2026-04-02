@@ -32,6 +32,8 @@ export class MeetingRepository {
       with: {
         participants: true,
         recurringSeries: true,
+        project: true,
+        organization: true,
       },
     });
   }

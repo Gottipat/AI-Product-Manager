@@ -9,12 +9,23 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 vi.mock('../db/repositories/meetingItems.repository.js', () => ({
   meetingItemsRepository: {
     createBatch: vi.fn(),
+    deleteGeneratedByMeeting: vi.fn(),
+  },
+}));
+
+vi.mock('../db/repositories/meeting.repository.js', () => ({
+  meetingRepository: {
+    findById: vi.fn().mockResolvedValue({
+      id: 'meeting-123',
+      title: 'Weekly Sync',
+      participants: [],
+    }),
   },
 }));
 
 vi.mock('../db/repositories/transcript.repository.js', () => ({
   transcriptRepository: {
-    getTranscriptText: vi.fn(),
+    findByMeetingId: vi.fn(),
   },
 }));
 
@@ -42,6 +53,33 @@ describe('Action Items Pipeline', () => {
     John: There's a blocker with the database migration.
   `;
 
+  const mockTranscriptEvents = [
+    {
+      id: 'te-1',
+      meetingId: 'meeting-123',
+      speaker: 'John',
+      content: 'We need to finish the API documentation by Friday.',
+      sequenceNumber: 1,
+      capturedAt: new Date('2026-04-02T09:00:00.000Z'),
+    },
+    {
+      id: 'te-2',
+      meetingId: 'meeting-123',
+      speaker: 'Sarah',
+      content: "I'll handle the frontend updates.",
+      sequenceNumber: 2,
+      capturedAt: new Date('2026-04-02T09:01:00.000Z'),
+    },
+    {
+      id: 'te-3',
+      meetingId: 'meeting-123',
+      speaker: 'John',
+      content: "There's a blocker with the database migration.",
+      sequenceNumber: 3,
+      capturedAt: new Date('2026-04-02T09:02:00.000Z'),
+    },
+  ];
+
   const mockActionItems = [
     {
       itemType: 'action_item' as const,
@@ -65,7 +103,7 @@ describe('Action Items Pipeline', () => {
 
   describe('extract', () => {
     it('should extract action items successfully', async () => {
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue(mockTranscript);
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
       (openaiService.extractActionItems as Mock).mockResolvedValue(mockActionItems);
       (meetingItemsRepository.createBatch as Mock).mockResolvedValue([
         { id: 'item-1' },
@@ -82,7 +120,7 @@ describe('Action Items Pipeline', () => {
     });
 
     it('should fail when no transcript available', async () => {
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue('');
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue([]);
 
       const result = await actionItemsPipeline.extract('meeting-123');
 
@@ -92,7 +130,7 @@ describe('Action Items Pipeline', () => {
     });
 
     it('should handle empty items array', async () => {
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue(mockTranscript);
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
       (openaiService.extractActionItems as Mock).mockResolvedValue([]);
 
       const result = await actionItemsPipeline.extract('meeting-123');
@@ -104,7 +142,7 @@ describe('Action Items Pipeline', () => {
     });
 
     it('should handle OpenAI errors gracefully', async () => {
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue(mockTranscript);
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
       (openaiService.extractActionItems as Mock).mockRejectedValue(new Error('API quota exceeded'));
 
       const result = await actionItemsPipeline.extract('meeting-123');
@@ -121,7 +159,7 @@ describe('Action Items Pipeline', () => {
       const result = await actionItemsPipeline.extractFromText(mockTranscript);
 
       expect(result).toHaveLength(3);
-      expect(transcriptRepository.getTranscriptText).not.toHaveBeenCalled();
+      expect(transcriptRepository.findByMeetingId).not.toHaveBeenCalled();
       expect(meetingItemsRepository.createBatch).not.toHaveBeenCalled();
     });
   });

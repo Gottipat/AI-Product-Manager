@@ -15,6 +15,7 @@ import { meetingRepository } from '../db/repositories/meeting.repository.js';
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
 import { meetings } from '../db/schema/meetings.js';
 import { projects } from '../db/schema/organizations.js';
+import { parseTranscript } from '../lib/transcript.js';
 import { momPipeline } from '../pipelines/mom.pipeline.js';
 
 // ============================================================================
@@ -24,39 +25,9 @@ import { momPipeline } from '../pipelines/mom.pipeline.js';
 const uploadTranscriptSchema = z.object({
   title: z.string().min(1, 'Meeting title is required'),
   transcript: z.string().min(10, 'Transcript must be at least 10 characters'),
+  analysisMode: z.enum(['general', 'product_manager']).optional().default('product_manager'),
+  contextNote: z.string().max(4000).optional(),
 });
-
-// ============================================================================
-// TRANSCRIPT PARSER
-// ============================================================================
-
-interface ParsedLine {
-  speaker: string;
-  content: string;
-}
-
-/**
- * Parse raw transcript text into speaker-attributed lines.
- * Supports:
- *   - "Speaker Name: What they said"  (colon-delimited)
- *   - Plain text lines (attributed to "Speaker")
- */
-function parseTranscript(raw: string): ParsedLine[] {
-  const lines = raw
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  return lines.map((line) => {
-    // Match "Speaker Name: content" — colon must be followed by a space
-    const match = line.match(/^([^:]{1,50}):\s+(.+)$/);
-    if (match && match[1] && match[2]) {
-      return { speaker: match[1].trim(), content: match[2].trim() };
-    }
-    // Fallback: no speaker attribution
-    return { speaker: 'Speaker', content: line };
-  });
-}
 
 // ============================================================================
 // ROUTES
@@ -82,7 +53,7 @@ export async function uploadRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      const { title, transcript } = parseResult.data;
+      const { title, transcript, analysisMode, contextNote } = parseResult.data;
 
       try {
         // 1. Look up the project
@@ -109,15 +80,29 @@ export async function uploadRoutes(fastify: FastifyInstance): Promise<void> {
 
         const meetLink = project.googleMeetLink || syntheticLink;
 
+        const parsedTranscript = parseTranscript(transcript);
+
+        if (parsedTranscript.events.length === 0) {
+          return reply.status(400).send({ error: 'Transcript contains no valid lines' });
+        }
+
+        const meetingStartTime = parsedTranscript.startedAt ?? new Date();
+
         // 4. Create a meeting record
         const meeting = await meetingRepository.create({
           title,
           googleMeetLink: meetLink,
           projectId,
           organizationId: project.organizationId,
+          description:
+            contextNote?.trim() ||
+            (analysisMode === 'product_manager'
+              ? 'Analyze this meeting like a senior product manager. Prioritize product context, decisions, risks, dependencies, user impact, and follow-up actions.'
+              : null),
           meetingType: 'other',
           status: 'completed',
-          startTime: new Date(),
+          captureSource: 'manual',
+          startTime: meetingStartTime,
           endTime: new Date(),
         });
 
@@ -125,15 +110,8 @@ export async function uploadRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(500).send({ error: 'Failed to create meeting' });
         }
 
-        // 5. Parse transcript into lines
-        const parsedLines = parseTranscript(transcript);
-
-        if (parsedLines.length === 0) {
-          return reply.status(400).send({ error: 'Transcript contains no valid lines' });
-        }
-
         // 6. Batch insert transcript events
-        const transcriptEvents = parsedLines.map((line, idx) => ({
+        const transcriptEvents = parsedTranscript.events.map((line, idx) => ({
           meetingId: meeting.id,
           speaker: line.speaker,
           content: line.content,
@@ -141,7 +119,7 @@ export async function uploadRoutes(fastify: FastifyInstance): Promise<void> {
           isFinal: true as const,
           confidence: null,
           speakerId: null,
-          capturedAt: new Date(),
+          capturedAt: line.capturedAt ?? new Date(meetingStartTime.getTime() + idx * 1000),
         }));
 
         const inserted = await transcriptRepository.createBatch(transcriptEvents);

@@ -4,8 +4,14 @@
  */
 
 import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
+import { meetingRepository } from '../db/repositories/meeting.repository.js';
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
-import { openaiService, type ActionItem } from '../services/openai.service.js';
+import {
+  openaiService,
+  type ActionItem,
+  type MeetingAnalysisContext,
+} from '../services/openai.service.js';
+import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 
 // ============================================================================
 // TYPES
@@ -38,17 +44,24 @@ export class ActionItemsPipeline {
     const startTime = Date.now();
 
     try {
-      // Fetch transcript
-      const transcriptText = await transcriptRepository.getTranscriptText(meetingId);
+      const [meeting, transcriptEvents] = await Promise.all([
+        meetingRepository.findById(meetingId),
+        transcriptRepository.findByMeetingId(meetingId),
+      ]);
+
+      const transcriptText = formatTranscriptForAI(transcriptEvents);
 
       if (!transcriptText || transcriptText.trim().length === 0) {
         throw new Error('No transcript available for this meeting');
       }
 
+      const context = this.buildContext(meetingId, meeting, transcriptEvents);
+
       // Extract items via OpenAI
-      const items = await openaiService.extractActionItems(transcriptText);
+      const items = await openaiService.extractActionItems(transcriptText, context);
 
       // Save to database
+      await meetingItemsRepository.deleteGeneratedByMeeting(meetingId, 'action_items_pipeline');
       const savedItems = await this.saveItems(meetingId, items);
 
       return {
@@ -75,6 +88,34 @@ export class ActionItemsPipeline {
     return await openaiService.extractActionItems(transcriptText);
   }
 
+  private buildContext(
+    meetingId: string,
+    meeting: Awaited<ReturnType<typeof meetingRepository.findById>>,
+    transcriptEvents: Awaited<ReturnType<typeof transcriptRepository.findByMeetingId>>
+  ): MeetingAnalysisContext {
+    return {
+      meetingId,
+      title: meeting?.title,
+      description: meeting?.description,
+      projectName: meeting?.project?.name,
+      projectDescription: meeting?.project?.description,
+      organizationName: meeting?.organization?.name,
+      meetingType: meeting?.meetingType,
+      status: meeting?.status,
+      captureSource: meeting?.captureSource,
+      analysisMode: 'product_manager',
+      startTime: meeting?.startTime?.toISOString(),
+      endTime: meeting?.endTime?.toISOString(),
+      durationMinutes: meeting?.durationMinutes,
+      participants: (meeting?.participants ?? []).map((participant) => ({
+        displayName: participant.displayName,
+        email: participant.email,
+        isBot: participant.isBot,
+      })),
+      transcript: getTranscriptSpeakerStats(transcriptEvents),
+    };
+  }
+
   /**
    * Save extracted items to database
    */
@@ -91,7 +132,13 @@ export class ActionItemsPipeline {
       dueDate: item.dueDate, // Keep as string, DB expects string
       priority: item.priority ?? 'medium',
       status: 'pending' as const,
-      sourceQuote: item.sourceQuote,
+      aiConfidence: item.aiConfidence ?? null,
+      sourceTranscriptRange: item.sourceTranscriptRange ?? null,
+      metadata: {
+        generatedBy: 'action_items_pipeline',
+        sourceQuote: item.sourceQuote,
+        context: item.context,
+      },
     }));
 
     return await meetingItemsRepository.createBatch(records);

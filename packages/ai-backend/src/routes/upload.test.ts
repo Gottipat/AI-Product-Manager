@@ -55,6 +55,7 @@ vi.mock('../pipelines/mom.pipeline.js', () => ({
 }));
 
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
+import { parseTranscript } from '../lib/transcript.js';
 import { momPipeline } from '../pipelines/mom.pipeline.js';
 
 describe('Upload Routes', () => {
@@ -64,76 +65,52 @@ describe('Upload Routes', () => {
 
   describe('Transcript Parser', () => {
     it('should parse speaker-attributed lines', () => {
-      // Test the parsing logic directly
       const raw = 'Alice: Hello everyone\nBob: Hi there\nCharlie: Good morning';
-      const lines = raw
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
-
-      const parsed = lines.map((line) => {
-        const match = line.match(/^([^:]{1,50}):\s+(.+)$/);
-        if (match && match[1] && match[2]) {
-          return { speaker: match[1].trim(), content: match[2].trim() };
-        }
-        return { speaker: 'Speaker', content: line };
-      });
+      const parsed = parseTranscript(raw).events;
 
       expect(parsed).toHaveLength(3);
-      expect(parsed[0]).toEqual({ speaker: 'Alice', content: 'Hello everyone' });
-      expect(parsed[1]).toEqual({ speaker: 'Bob', content: 'Hi there' });
-      expect(parsed[2]).toEqual({ speaker: 'Charlie', content: 'Good morning' });
+      expect(parsed[0]).toMatchObject({ speaker: 'Alice', content: 'Hello everyone' });
+      expect(parsed[1]).toMatchObject({ speaker: 'Bob', content: 'Hi there' });
+      expect(parsed[2]).toMatchObject({ speaker: 'Charlie', content: 'Good morning' });
     });
 
     it('should fall back to generic speaker for plain text', () => {
       const raw = 'This is plain text without attribution';
-      const lines = raw
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
-
-      const parsed = lines.map((line) => {
-        const match = line.match(/^([^:]{1,50}):\s+(.+)$/);
-        if (match && match[1] && match[2]) {
-          return { speaker: match[1].trim(), content: match[2].trim() };
-        }
-        return { speaker: 'Speaker', content: line };
-      });
+      const parsed = parseTranscript(raw).events;
 
       expect(parsed).toHaveLength(1);
-      expect(parsed[0]?.speaker).toBe('Speaker');
+      expect(parsed[0]?.speaker).toBe('Unknown Speaker');
       expect(parsed[0]?.content).toBe('This is plain text without attribution');
     });
 
     it('should handle mixed format transcripts', () => {
       const raw = 'Alice: First point\nSome plain text\nBob: Another point';
-      const lines = raw
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
+      const parsed = parseTranscript(raw).events;
 
-      const parsed = lines.map((line) => {
-        const match = line.match(/^([^:]{1,50}):\s+(.+)$/);
-        if (match && match[1] && match[2]) {
-          return { speaker: match[1].trim(), content: match[2].trim() };
-        }
-        return { speaker: 'Speaker', content: line };
-      });
-
-      expect(parsed).toHaveLength(3);
+      expect(parsed).toHaveLength(2);
       expect(parsed[0]?.speaker).toBe('Alice');
-      expect(parsed[1]?.speaker).toBe('Speaker');
-      expect(parsed[2]?.speaker).toBe('Bob');
+      expect(parsed[0]?.content).toContain('Some plain text');
+      expect(parsed[1]?.speaker).toBe('Bob');
     });
 
     it('should skip empty lines', () => {
       const raw = 'Alice: Hello\n\n\nBob: World\n  \n';
-      const lines = raw
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
+      const parsed = parseTranscript(raw).events;
+      expect(parsed).toHaveLength(2);
+    });
 
-      expect(lines).toHaveLength(2);
+    it('should ignore transcript headers and parse started time', () => {
+      const raw = `=== Transcript for Meeting abc ===
+Started at: 2026-04-02T09:00:00.000Z
+
+[09:01 AM] Alice: Kickoff
+[09:02 AM] Bob: Status update`;
+
+      const parsed = parseTranscript(raw);
+
+      expect(parsed.startedAt?.toISOString()).toBe('2026-04-02T09:00:00.000Z');
+      expect(parsed.events).toHaveLength(2);
+      expect(parsed.events[0]?.capturedAt?.toISOString()).toBe('2026-04-02T13:01:00.000Z');
     });
   });
 

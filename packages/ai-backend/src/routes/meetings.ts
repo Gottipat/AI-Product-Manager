@@ -3,6 +3,9 @@
  * @description REST API endpoints for meeting lifecycle management
  */
 
+import { createReadStream, existsSync, statSync } from 'fs';
+import { join } from 'path';
+
 import { FastifyInstance } from 'fastify';
 
 import { meetingRepository, type NewMeeting } from '../db/repositories/meeting.repository.js';
@@ -145,6 +148,26 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id/participants', async (request) => {
     const participants = await meetingRepository.getParticipants(request.params.id);
     return { participants };
+  });
+
+  /**
+   * GET /api/v1/meetings/:id/audio
+   * Serve the audio recording file for a meeting
+   */
+  fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id/audio', async (request, reply) => {
+    const meetingId = request.params.id;
+    const recordingPath = join(process.cwd(), 'uploads', 'recordings', `${meetingId}.webm`);
+
+    if (!existsSync(recordingPath)) {
+      return reply.status(404).send({ error: 'No audio recording found for this meeting' });
+    }
+
+    const stat = statSync(recordingPath);
+    return reply
+      .header('Content-Type', 'audio/webm')
+      .header('Content-Length', stat.size)
+      .header('Accept-Ranges', 'bytes')
+      .send(createReadStream(recordingPath));
   });
 
   /**

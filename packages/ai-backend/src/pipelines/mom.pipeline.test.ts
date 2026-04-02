@@ -10,18 +10,30 @@ vi.mock('../db/repositories/mom.repository.js', () => ({
   momRepository: {
     upsert: vi.fn(),
     addHighlights: vi.fn(),
+    deleteHighlightsByMomId: vi.fn(),
   },
 }));
 
 vi.mock('../db/repositories/meetingItems.repository.js', () => ({
   meetingItemsRepository: {
     createBatch: vi.fn(),
+    deleteByMomId: vi.fn(),
+  },
+}));
+
+vi.mock('../db/repositories/meeting.repository.js', () => ({
+  meetingRepository: {
+    findById: vi.fn().mockResolvedValue({
+      id: 'meeting-123',
+      title: 'Budget Review',
+      participants: [],
+    }),
   },
 }));
 
 vi.mock('../db/repositories/transcript.repository.js', () => ({
   transcriptRepository: {
-    getTranscriptText: vi.fn(),
+    findByMeetingId: vi.fn(),
   },
 }));
 
@@ -45,12 +57,40 @@ describe('MoM Pipeline', () => {
     vi.clearAllMocks();
   });
 
-  const mockTranscript = `
-    John: Good morning everyone.
-    Sarah: Let's discuss the Q1 budget.
-    John: I think we should allocate 50% to engineering.
-    Sarah: Agreed. Let's also hire two more engineers.
-  `;
+  const mockTranscriptEvents = [
+    {
+      id: 'te-1',
+      meetingId: 'meeting-123',
+      speaker: 'John',
+      content: 'Good morning everyone.',
+      sequenceNumber: 1,
+      capturedAt: new Date('2026-04-02T09:00:00.000Z'),
+    },
+    {
+      id: 'te-2',
+      meetingId: 'meeting-123',
+      speaker: 'Sarah',
+      content: "Let's discuss the Q1 budget.",
+      sequenceNumber: 2,
+      capturedAt: new Date('2026-04-02T09:01:00.000Z'),
+    },
+    {
+      id: 'te-3',
+      meetingId: 'meeting-123',
+      speaker: 'John',
+      content: 'I think we should allocate 50% to engineering.',
+      sequenceNumber: 3,
+      capturedAt: new Date('2026-04-02T09:02:00.000Z'),
+    },
+    {
+      id: 'te-4',
+      meetingId: 'meeting-123',
+      speaker: 'Sarah',
+      content: "Agreed. Let's also hire two more engineers.",
+      sequenceNumber: 4,
+      capturedAt: new Date('2026-04-02T09:03:00.000Z'),
+    },
+  ];
 
   const mockMoMResponse = {
     executiveSummary: 'Team discussed Q1 budget allocation.',
@@ -84,7 +124,7 @@ describe('MoM Pipeline', () => {
   describe('generate', () => {
     it('should generate MoM successfully', async () => {
       // Setup mocks
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue(mockTranscript);
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
       (openaiService.generateMoM as Mock).mockResolvedValue(mockMoMResponse);
       (momRepository.upsert as Mock).mockResolvedValue({ id: 'mom-123', meetingId: 'meeting-123' });
       (momRepository.addHighlights as Mock).mockResolvedValue([{ id: 'highlight-1' }]);
@@ -103,7 +143,7 @@ describe('MoM Pipeline', () => {
     });
 
     it('should fail when no transcript available', async () => {
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue('');
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue([]);
 
       const result = await momPipeline.generate('meeting-123');
 
@@ -113,7 +153,7 @@ describe('MoM Pipeline', () => {
     });
 
     it('should fail when transcript is null', async () => {
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue(null);
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue([]);
 
       const result = await momPipeline.generate('meeting-123');
 
@@ -122,7 +162,7 @@ describe('MoM Pipeline', () => {
     });
 
     it('should handle OpenAI errors gracefully', async () => {
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue(mockTranscript);
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
       (openaiService.generateMoM as Mock).mockRejectedValue(new Error('Rate limit exceeded'));
 
       const result = await momPipeline.generate('meeting-123');
@@ -133,7 +173,7 @@ describe('MoM Pipeline', () => {
 
     it('should handle empty highlights array', async () => {
       const responseNoHighlights = { ...mockMoMResponse, highlights: [] };
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue(mockTranscript);
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
       (openaiService.generateMoM as Mock).mockResolvedValue(responseNoHighlights);
       (momRepository.upsert as Mock).mockResolvedValue({ id: 'mom-123' });
       (meetingItemsRepository.createBatch as Mock).mockResolvedValue([{ id: 'item-1' }]);
@@ -147,7 +187,7 @@ describe('MoM Pipeline', () => {
 
     it('should handle empty items array', async () => {
       const responseNoItems = { ...mockMoMResponse, items: [] };
-      (transcriptRepository.getTranscriptText as Mock).mockResolvedValue(mockTranscript);
+      (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
       (openaiService.generateMoM as Mock).mockResolvedValue(responseNoItems);
       (momRepository.upsert as Mock).mockResolvedValue({ id: 'mom-123' });
       (momRepository.addHighlights as Mock).mockResolvedValue([{ id: 'h-1' }]);

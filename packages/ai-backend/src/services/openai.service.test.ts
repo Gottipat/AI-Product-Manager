@@ -151,6 +151,20 @@ describe('OpenAI Service', () => {
         expect(() => ActionItemSchema.parse(invalidEmail)).toThrow();
       });
 
+      it('should validate confidence and transcript ranges', () => {
+        const validItem = {
+          itemType: 'action_item',
+          title: 'Follow up with finance',
+          aiConfidence: 0.86,
+          sourceTranscriptRange: {
+            startSeq: 12,
+            endSeq: 14,
+          },
+        };
+
+        expect(() => ActionItemSchema.parse(validItem)).not.toThrow();
+      });
+
       it('should enforce max title length of 200', () => {
         const tooLong = {
           itemType: 'action_item',
@@ -166,6 +180,7 @@ describe('OpenAI Service', () => {
         const validMoM = {
           executiveSummary: 'Team met to discuss Q1 planning.',
           mainTopics: ['Budget', 'Hiring'],
+          overallConfidence: 0.9,
           highlights: [
             {
               highlightType: 'key_point',
