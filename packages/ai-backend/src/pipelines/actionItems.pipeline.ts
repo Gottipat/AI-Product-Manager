@@ -3,15 +3,15 @@
  * @description Standalone pipeline for extracting action items from transcripts
  */
 
-import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
 import { meetingRepository } from '../db/repositories/meeting.repository.js';
+import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
+import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 import {
   openaiService,
   type ActionItem,
   type MeetingAnalysisContext,
 } from '../services/openai.service.js';
-import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 
 // ============================================================================
 // TYPES

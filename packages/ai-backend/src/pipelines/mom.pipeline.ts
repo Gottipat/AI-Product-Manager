@@ -3,17 +3,17 @@
  * @description Orchestrates the full Minutes of Meeting generation flow
  */
 
-import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
 import { meetingRepository } from '../db/repositories/meeting.repository.js';
+import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
 import { momRepository } from '../db/repositories/mom.repository.js';
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
+import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 import {
   openaiService,
   type Highlight,
   type ActionItem,
   type MeetingAnalysisContext,
 } from '../services/openai.service.js';
-import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 
 // ============================================================================
 // TYPES
