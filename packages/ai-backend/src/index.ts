@@ -11,44 +11,63 @@
  * - RAG system for context retrieval
  */
 
+import 'dotenv/config';
+import cors from '@fastify/cors';
+import websocket from '@fastify/websocket';
+import { API_CONFIG } from '@meeting-ai/shared';
 import Fastify from 'fastify';
 
-import { API_CONFIG } from '@meeting-ai/shared';
+import { registerRoutes } from './routes/index.js';
 
 const server = Fastify({
-    logger: true,
+  logger: true,
 });
 
 // Health check endpoint
 server.get('/api/v1/health', async () => {
-    return {
-        status: 'healthy',
-        version: '0.0.1',
-        timestamp: new Date().toISOString(),
-        services: [],
-    };
-});
-
-// Placeholder routes - You will implement
-server.post('/api/v1/stream/transcript', async (_request, reply) => {
-    // TODO: Implement transcript streaming endpoint
-    return reply.status(501).send({ error: 'Not implemented' });
-});
-
-server.post('/api/v1/meetings/start', async (_request, reply) => {
-    // TODO: Implement meeting start endpoint
-    return reply.status(501).send({ error: 'Not implemented' });
+  return {
+    status: 'healthy',
+    version: '0.0.1',
+    timestamp: new Date().toISOString(),
+    services: ['database', 'meetings', 'transcripts', 'mom', 'items'],
+  };
 });
 
 async function start(): Promise<void> {
-    try {
-        await server.listen({ port: 3000, host: '0.0.0.0' });
-        console.warn(`AI Backend listening on http://localhost:3000`);
-        console.warn(`Timeout config: ${API_CONFIG.DEFAULT_TIMEOUT_MS}ms`);
-    } catch (err) {
-        server.log.error(err);
-        process.exit(1);
-    }
+  try {
+    // Register CORS
+    await server.register(cors, {
+      origin: (origin, callback) => {
+        const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
+        // Allow Chrome extension origins
+        if (
+          !origin ||
+          allowedOrigins.includes(origin) ||
+          origin.startsWith('chrome-extension://')
+        ) {
+          callback(null, true);
+        } else {
+          callback(null, false);
+        }
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    });
+
+    // Register WebSocket support (for audio streaming)
+    await server.register(websocket);
+
+    // Register all routes (routes already include /api/v1 prefix)
+    await registerRoutes(server);
+
+    const port = Number(process.env.PORT) || 3000;
+    await server.listen({ port, host: '0.0.0.0' });
+    console.warn(`AI Backend listening on http://localhost:${port}`);
+    console.warn(`Timeout config: ${API_CONFIG.DEFAULT_TIMEOUT_MS}ms`);
+  } catch (err) {
+    server.log.error(err);
+    process.exit(1);
+  }
 }
 
 start();

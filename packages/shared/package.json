@@ -1,45 +1,45 @@
 {
-    "name": "@meeting-ai/shared",
-    "version": "0.0.1",
-    "private": true,
-    "description": "Shared types, schemas, and contracts for Meeting AI system",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "require": "./dist/index.js"
-        },
-        "./types": {
-            "types": "./dist/types/index.d.ts",
-            "import": "./dist/types/index.js"
-        },
-        "./schemas": {
-            "types": "./dist/schemas/index.d.ts",
-            "import": "./dist/schemas/index.js"
-        },
-        "./contracts": {
-            "types": "./dist/contracts/index.d.ts",
-            "import": "./dist/contracts/index.js"
-        },
-        "./constants": {
-            "types": "./dist/constants/index.d.ts",
-            "import": "./dist/constants/index.js"
-        }
+  "name": "@meeting-ai/shared",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared types, schemas, and contracts for Meeting AI system",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "typecheck": "tsc --noEmit",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "clean": "rm -rf dist"
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
     },
-    "dependencies": {
-        "zod": "^3.22.0"
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "import": "./dist/schemas/index.js"
     },
-    "devDependencies": {
-        "vitest": "^1.2.0"
+    "./contracts": {
+      "types": "./dist/contracts/index.d.ts",
+      "import": "./dist/contracts/index.js"
+    },
+    "./constants": {
+      "types": "./dist/constants/index.d.ts",
+      "import": "./dist/constants/index.js"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.2.0"
+  }
 }

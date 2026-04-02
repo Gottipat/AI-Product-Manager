@@ -12,6 +12,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
+    "ci:local": "./scripts/ci-local.sh",
+    "pre-push": "pnpm run lint && pnpm run format:check && pnpm run build",
     "prepare": "husky",
     "clean": "pnpm -r clean && rm -rf node_modules"
   },
@@ -23,8 +25,9 @@
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.29.0",
-    "husky": "^9.0.0",
+    "husky": "^9.1.7",
     "lint-staged": "^15.2.0",
     "prettier": "^3.2.0",
     "typescript": "^5.3.0"

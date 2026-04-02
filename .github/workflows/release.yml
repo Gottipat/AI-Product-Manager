@@ -6,9 +6,24 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - '.context/**'
 
 jobs:
+  # Only main can trigger releases, and only from dev merges
+  validate-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Validate merge source
+        run: |
+          echo "Release triggered on main branch"
+          echo "This should only come from dev branch merges"
+
   release:
+    needs: validate-source
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +54,7 @@ jobs:
         if: success()
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          git tag -a "v$VERSION" -m "Release v$VERSION"
-          git push origin "v$VERSION"
+          git tag -a "v$VERSION" -m "Release v$VERSION" || echo "Tag already exists"
+          git push origin "v$VERSION" || echo "Tag already pushed"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

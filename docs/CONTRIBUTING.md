@@ -1,14 +1,18 @@
 # Contributing to Meeting AI
 
-## Development Workflow
+## Branch Strategy
 
-### Daily Sync Protocol
+```
+feature/* ──→ dev ──→ main
+   fix/*  ──┘
+```
 
-1. **Morning**: Pull latest `develop`
-2. **Work**: Create feature branches from `develop`
-3. **PR**: Submit PR with appropriate reviewers
-4. **Review**: Other team member reviews if touching shared code
-5. **Merge**: Squash merge to `develop`
+**Rules:**
+
+- ❌ No direct commits to `main`
+- ❌ No direct PRs to `main` (except from `dev`)
+- ✅ Feature branches → `dev`
+- ✅ `dev` → `main` (release)
 
 ### Branch Naming
 
@@ -16,67 +20,42 @@
 feature/[package]-[description]
 fix/[package]-[description]
 hotfix/[description]
+docs/[description]
+chore/[description]
 ```
 
 Examples:
+
 - `feature/ai-backend-mom-generation`
 - `feature/bot-runner-caption-parser`
 - `fix/shared-transcript-schema`
 
-### Commit Messages
+## Workflow
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
+1. Create branch from `dev`: `git checkout -b feature/ai-backend-xyz dev`
+2. Make changes, commit following conventions
+3. Push and create PR to `dev`
+4. Get review (shared package needs both @KumarSashank and @Gottipat)
+5. Merge to `dev`
+6. Periodically, create PR from `dev` → `main` for release
 
-```
-<type>(<scope>): <description>
+## Commit Messages
 
-[optional body]
+Format: `<type>(<scope>): <description>`
 
-[optional footer]
-```
+**Types**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
+**Scopes**: `shared`, `bot-runner`, `ai-backend`, `ci`, `docs`
 
-**Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`
+Examples:
 
-**Scopes**: `shared`, `bot-runner`, `ai-backend`, `ci`, `docs`, `deps`
+- `feat(ai-backend): add MoM generation endpoint`
+- `fix(shared): correct TranscriptEvent timestamp type`
 
-### Code Review Requirements
+## Code Review
 
-| Package | Required Reviewers |
-|---------|-------------------|
-| `shared` | Both team members |
-| `bot-runner` | Friend (owner) |
-| `ai-backend` | You (owner) |
-| `.github/` | Both team members |
-
-## Code Standards
-
-### TypeScript
-
-- Strict mode enabled
-- Explicit return types on functions
-- No `any` types (use `unknown` if needed)
-
-### Formatting
-
-- Prettier for formatting
-- ESLint for linting
-- Pre-commit hooks enforce both
-
-### Testing
-
-- Write tests for new features
-- Aim for >80% coverage on critical paths
-- Use Vitest for unit tests
-
-## Communication
-
-Use GitHub Issues for:
-- Bug reports
-- Feature requests
-- Cross-team discussions
-
-Labels:
-- `bot-runner`: Friend's domain
-- `ai-backend`: Your domain
-- `shared`: Requires both
-- `blocked`: Needs other team input
+| Package                 | Required Reviewers          |
+| ----------------------- | --------------------------- |
+| `shared`                | @KumarSashank AND @Gottipat |
+| `bot-runner`            | @Gottipat                   |
+| `ai-backend`            | @KumarSashank               |
+| `.github/`, `.context/` | Both                        |

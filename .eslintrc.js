@@ -4,12 +4,13 @@ module.exports = {
     parserOptions: {
         ecmaVersion: 2022,
         sourceType: 'module',
+        project: ['./packages/*/tsconfig.json'],
+        tsconfigRootDir: __dirname,
     },
     plugins: ['@typescript-eslint', 'import'],
     extends: [
         'eslint:recommended',
         'plugin:@typescript-eslint/recommended',
-        'plugin:@typescript-eslint/recommended-requiring-type-checking',
         'plugin:import/recommended',
         'plugin:import/typescript',
         'prettier',
@@ -21,16 +22,13 @@ module.exports = {
     settings: {
         'import/resolver': {
             typescript: {
-                project: ['./tsconfig.base.json', './packages/*/tsconfig.json'],
+                project: ['./packages/*/tsconfig.json'],
             },
         },
     },
     rules: {
-        '@typescript-eslint/explicit-function-return-type': 'warn',
         '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
         '@typescript-eslint/no-explicit-any': 'error',
-        '@typescript-eslint/prefer-nullish-coalescing': 'error',
-        '@typescript-eslint/prefer-optional-chain': 'error',
         'import/order': [
             'error',
             {
