@@ -13,6 +13,7 @@
 | [Testing](./TESTING.md)             | Test conventions and running tests  |
 | [Contributing](./CONTRIBUTING.md)   | Code style and PR process           |
 | [Developer Tooling](./TOOLING.md)   | Pre-push hooks, linting, formatting |
+| [Docker Run](./DOCKER_RUN.md)       | Team Docker setup and run guide     |
 
 ---
 
@@ -25,7 +26,7 @@ cd AI-Product-Manager
 pnpm install
 
 # 2. Start local services
-docker-compose up -d postgres
+docker compose up -d postgres
 
 # 3. Set up database
 cp packages/ai-backend/.env.example packages/ai-backend/.env
@@ -62,6 +63,7 @@ pnpm dev
 - [TESTING.md](./TESTING.md) - Test framework, conventions, coverage requirements
 - [TOOLING.md](./TOOLING.md) - Git hooks, linting, formatting, CI/CD
 - [CONTRIBUTING.md](./CONTRIBUTING.md) - Branch strategy, code style, PR process
+- [DOCKER_RUN.md](./DOCKER_RUN.md) - Full Docker Compose workflow for teammates
 
 ---
 

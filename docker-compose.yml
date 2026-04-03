@@ -1,64 +1,87 @@
-version: '3.8'
-
 services:
-  ai-backend:
-    build:
-      context: ./packages/ai-backend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - DATABASE_URL=postgresql://meeting_ai:password@postgres:5432/meeting_ai
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    depends_on:
-      - postgres
-      - redis
-    volumes:
-      - ./packages/ai-backend/src:/app/src:ro
-    networks:
-      - meeting-ai
-
-  bot-runner:
-    build:
-      context: ./packages/bot-runner
-      dockerfile: Dockerfile
-    environment:
-      - AI_BACKEND_URL=http://ai-backend:3000
-      - BOT_DISPLAY_NAME=Meeting AI Bot
-    depends_on:
-      - ai-backend
-    networks:
-      - meeting-ai
-
   postgres:
     image: pgvector/pgvector:pg16
+    container_name: meeting-ai-postgres
     environment:
-      - POSTGRES_USER=meeting_ai
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=meeting_ai
+      POSTGRES_USER: ${POSTGRES_USER:-meeting_ai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-meeting_ai}
     ports:
-      - "5432:5432"
+      - '${DATABASE_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U meeting_ai -d meeting_ai"]
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - meeting-ai
+      retries: 10
+    restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
+  ai-backend:
+    build:
+      context: .
+      dockerfile: docker/ai-backend.Dockerfile
+    container_name: meeting-ai-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${AI_BACKEND_PORT:-3002}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://meeting_ai:password@postgres:5432/meeting_ai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret}
+      COOKIE_SECRET: ${COOKIE_SECRET:-change-this-cookie-secret}
     ports:
-      - "6379:6379"
-    networks:
-      - meeting-ai
+      - '${AI_BACKEND_PORT:-3002}:${AI_BACKEND_PORT:-3002}'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e 'fetch("http://127.0.0.1:" + (process.env.PORT || 3002) + "/api/v1/health")
+          .then((res) => process.exit(res.ok ? 0 : 1))
+          .catch(() => process.exit(1))'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
 
-networks:
-  meeting-ai:
-    driver: bridge
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3002/api/v1}
+    container_name: meeting-ai-web
+    depends_on:
+      ai-backend:
+        condition: service_healthy
+    environment:
+      PORT: ${WEB_PORT:-3001}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3002/api/v1}
+    ports:
+      - '${WEB_PORT:-3001}:3001'
+    restart: unless-stopped
+
+  bot-runner:
+    profiles: ['bot']
+    build:
+      context: .
+      dockerfile: docker/bot-runner.Dockerfile
+    container_name: meeting-ai-bot-runner
+    depends_on:
+      ai-backend:
+        condition: service_healthy
+    environment:
+      AI_BACKEND_URL: ${AI_BACKEND_INTERNAL_URL:-http://ai-backend:3002}
+      BOT_DISPLAY_NAME: ${BOT_DISPLAY_NAME:-Meeting AI Bot}
+      HEADLESS: ${HEADLESS:-true}
+      MEET_LINK: ${MEET_LINK:-}
+      GOOGLE_EMAIL: ${GOOGLE_EMAIL:-}
+      GOOGLE_PASSWORD: ${GOOGLE_PASSWORD:-}
+      LOG_LEVEL: info
+    shm_size: '1gb'
+    restart: 'no'
 
 volumes:
   postgres_data:

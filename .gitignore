@@ -18,6 +18,7 @@ out/
 
 # Environment
 .env
+.env.docker
 .env.local
 .env.*.local
 
