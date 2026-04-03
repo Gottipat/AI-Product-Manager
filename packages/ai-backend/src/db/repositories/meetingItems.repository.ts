@@ -197,6 +197,70 @@ export class MeetingItemsRepository {
   }
 
   /**
+   * Sync item status based on evidence from a later meeting without duplicating progress updates.
+   */
+  async syncStatusFromMeeting(args: {
+    id: string;
+    meetingId: string;
+    status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'deferred' | 'cancelled';
+    updateDescription?: string;
+    updatedBy?: string;
+  }) {
+    const { id, meetingId, status, updateDescription, updatedBy } = args;
+    const item = await db.query.meetingItems.findFirst({
+      where: eq(meetingItems.id, id),
+    });
+    if (!item) return null;
+
+    const existingProgress = await db.query.progressUpdates.findFirst({
+      where: and(eq(progressUpdates.meetingItemId, id), eq(progressUpdates.meetingId, meetingId)),
+    });
+
+    if (existingProgress) {
+      if (
+        existingProgress.newStatus !== status ||
+        existingProgress.updateDescription !== updateDescription ||
+        existingProgress.updatedBy !== updatedBy
+      ) {
+        await db
+          .update(progressUpdates)
+          .set({
+            previousStatus: item.status ?? undefined,
+            newStatus: status,
+            updateDescription,
+            updatedBy,
+          })
+          .where(eq(progressUpdates.id, existingProgress.id));
+      }
+    } else if (item.status !== status || updateDescription) {
+      await this.addProgressUpdate({
+        meetingItemId: id,
+        meetingId,
+        previousStatus: item.status ?? undefined,
+        newStatus: status,
+        updateDescription,
+        updatedBy,
+      });
+    }
+
+    if (item.status === status) {
+      const result = await db
+        .update(meetingItems)
+        .set({ updatedAt: new Date() })
+        .where(eq(meetingItems.id, id))
+        .returning();
+      return result[0];
+    }
+
+    const result = await db
+      .update(meetingItems)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(meetingItems.id, id))
+      .returning();
+    return result[0];
+  }
+
+  /**
    * Add a progress update
    */
   async addProgressUpdate(data: NewProgressUpdate): Promise<ProgressUpdate | undefined> {

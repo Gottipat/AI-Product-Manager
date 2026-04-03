@@ -18,6 +18,8 @@ vi.mock('../db/repositories/meetingItems.repository.js', () => ({
   meetingItemsRepository: {
     createBatch: vi.fn(),
     deleteByMomId: vi.fn(),
+    deleteGeneratedByMeeting: vi.fn(),
+    syncStatusFromMeeting: vi.fn(),
   },
 }));
 
@@ -37,10 +39,25 @@ vi.mock('../db/repositories/transcript.repository.js', () => ({
   },
 }));
 
+vi.mock('../services/productManager.service.js', () => ({
+  productManagerService: {
+    buildProjectContext: vi.fn().mockResolvedValue({
+      openItems: [],
+      recentMeetingSummaries: [],
+      openItemsSummary: [],
+      accountabilityAlerts: [],
+      readinessSignals: [],
+      projectPriority: 'low',
+      contextSummary: 'No project context.',
+    }),
+  },
+}));
+
 // Mock OpenAI service
 vi.mock('../services/openai.service.js', () => ({
   openaiService: {
-    generateMoM: vi.fn(),
+    extractActionItems: vi.fn().mockResolvedValue([]),
+    generateMoMWithSeedItems: vi.fn(),
     fitsInContext: vi.fn().mockReturnValue(true),
   },
 }));
@@ -125,7 +142,7 @@ describe('MoM Pipeline', () => {
     it('should generate MoM successfully', async () => {
       // Setup mocks
       (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
-      (openaiService.generateMoM as Mock).mockResolvedValue(mockMoMResponse);
+      (openaiService.generateMoMWithSeedItems as Mock).mockResolvedValue(mockMoMResponse);
       (momRepository.upsert as Mock).mockResolvedValue({ id: 'mom-123', meetingId: 'meeting-123' });
       (momRepository.addHighlights as Mock).mockResolvedValue([{ id: 'highlight-1' }]);
       (meetingItemsRepository.createBatch as Mock).mockResolvedValue([
@@ -163,7 +180,9 @@ describe('MoM Pipeline', () => {
 
     it('should handle OpenAI errors gracefully', async () => {
       (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
-      (openaiService.generateMoM as Mock).mockRejectedValue(new Error('Rate limit exceeded'));
+      (openaiService.generateMoMWithSeedItems as Mock).mockRejectedValue(
+        new Error('Rate limit exceeded')
+      );
 
       const result = await momPipeline.generate('meeting-123');
 
@@ -174,7 +193,7 @@ describe('MoM Pipeline', () => {
     it('should handle empty highlights array', async () => {
       const responseNoHighlights = { ...mockMoMResponse, highlights: [] };
       (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
-      (openaiService.generateMoM as Mock).mockResolvedValue(responseNoHighlights);
+      (openaiService.generateMoMWithSeedItems as Mock).mockResolvedValue(responseNoHighlights);
       (momRepository.upsert as Mock).mockResolvedValue({ id: 'mom-123' });
       (meetingItemsRepository.createBatch as Mock).mockResolvedValue([{ id: 'item-1' }]);
 
@@ -188,7 +207,7 @@ describe('MoM Pipeline', () => {
     it('should handle empty items array', async () => {
       const responseNoItems = { ...mockMoMResponse, items: [] };
       (transcriptRepository.findByMeetingId as Mock).mockResolvedValue(mockTranscriptEvents);
-      (openaiService.generateMoM as Mock).mockResolvedValue(responseNoItems);
+      (openaiService.generateMoMWithSeedItems as Mock).mockResolvedValue(responseNoItems);
       (momRepository.upsert as Mock).mockResolvedValue({ id: 'mom-123' });
       (momRepository.addHighlights as Mock).mockResolvedValue([{ id: 'h-1' }]);
 

@@ -8,6 +8,7 @@ import {
   buildProjectContextSnapshot,
   dedupeContextualItems,
   isItemReferencedInTranscript,
+  reconcileMeetingItems,
 } from './productManager.js';
 
 describe('productManager utilities', () => {
@@ -68,6 +69,8 @@ describe('productManager utilities', () => {
       'Open question still unresolved: Should we ship guest checkout in phase one?'
     );
     expect(snapshot.contextSummary).toContain('Accountability alerts');
+    expect(snapshot.projectPriority).toBe('high');
+    expect(snapshot.readinessSignals.length).toBeGreaterThan(0);
   });
 
   it('deduplicates contextual items by type and title', () => {
@@ -78,5 +81,51 @@ describe('productManager utilities', () => {
     ]);
 
     expect(deduped).toHaveLength(2);
+  });
+
+  it('reconciles current items with prior context and resolves matched open questions', () => {
+    const reconciliation = reconcileMeetingItems({
+      transcriptText:
+        'The original question on guest checkout is now effectively answered. We are shipping it in beta behind guardrails.',
+      openItems: [
+        {
+          id: 'i-2',
+          meetingId: 'm-1',
+          itemType: 'question',
+          title: 'Should we ship guest checkout in phase one?',
+          status: 'pending',
+          createdAt: new Date('2026-03-21T00:00:00.000Z'),
+          updatedAt: new Date('2026-03-21T00:00:00.000Z'),
+        },
+      ],
+      currentItems: [
+        {
+          itemType: 'decision',
+          title: 'Guest checkout will ship in beta behind guardrails',
+          description: 'The original question is now effectively answered.',
+          priority: 'high',
+        },
+        {
+          itemType: 'question',
+          title: 'Open question still unresolved: Should we ship guest checkout in phase one?',
+          metadata: {
+            generatedBy: 'product_manager_context',
+            alertType: 'unresolved_question',
+            sourceItemId: 'i-2',
+          },
+        },
+      ],
+    });
+
+    expect(reconciliation.priorItemUpdates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemId: 'i-2',
+          newStatus: 'completed',
+        }),
+      ])
+    );
+    expect(reconciliation.contextualItems).toHaveLength(1);
+    expect(reconciliation.resolvedItemsSummary[0]).toContain('Resolved carry-over question');
   });
 });

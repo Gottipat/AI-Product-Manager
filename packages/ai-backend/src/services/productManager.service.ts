@@ -25,9 +25,12 @@ export class ProductManagerService {
 
     if (!projectId) {
       return {
+        openItems: [],
         recentMeetingSummaries: [],
         openItemsSummary: [],
         accountabilityAlerts: [],
+        readinessSignals: [],
+        projectPriority: 'low',
         contextSummary:
           'Recent meeting continuity:\n- No project linked to this meeting.\n\nOpen project items:\n- No project linked to this meeting.\n\nAccountability alerts:\n- No deterministic alerts triggered.',
       };

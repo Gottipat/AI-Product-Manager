@@ -6,7 +6,11 @@
 import { meetingRepository } from '../db/repositories/meeting.repository.js';
 import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
-import { dedupeContextualItems, type ContextualActionItem } from '../lib/productManager.js';
+import {
+  dedupeContextualItems,
+  reconcileMeetingItems,
+  type ContextualActionItem,
+} from '../lib/productManager.js';
 import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 import {
   openaiService,
@@ -64,16 +68,24 @@ export class ActionItemsPipeline {
         meetingStartTime: meeting?.startTime ?? null,
       });
 
-      const context = this.buildContext(meetingId, meeting, transcriptEvents, projectContext);
+      const baseContext = this.buildContext(meetingId, meeting, transcriptEvents, projectContext);
 
       // Extract items via OpenAI
-      const items = dedupeContextualItems([
-        ...(await openaiService.extractActionItems(transcriptText, context)),
+      const extractedItems = dedupeContextualItems([
+        ...(await openaiService.extractActionItems(transcriptText, baseContext)),
         ...projectContext.accountabilityAlerts,
       ]);
+      const reconciliation = reconcileMeetingItems({
+        currentItems: extractedItems,
+        openItems: projectContext.openItems,
+        transcriptText,
+        referenceDate: meeting?.startTime ?? new Date(),
+      });
+      const items = reconciliation.contextualItems;
 
       // Save to database
       await meetingItemsRepository.deleteGeneratedByMeeting(meetingId, 'action_items_pipeline');
+      await this.applyPriorItemUpdates(meetingId, reconciliation);
       const savedItems = await this.saveItems(meetingId, meeting?.projectId ?? null, items);
 
       return {
@@ -104,7 +116,8 @@ export class ActionItemsPipeline {
     meetingId: string,
     meeting: Awaited<ReturnType<typeof meetingRepository.findById>>,
     transcriptEvents: Awaited<ReturnType<typeof transcriptRepository.findByMeetingId>>,
-    projectContext: Awaited<ReturnType<typeof productManagerService.buildProjectContext>>
+    projectContext: Awaited<ReturnType<typeof productManagerService.buildProjectContext>>,
+    reconciliation?: ReturnType<typeof reconcileMeetingItems>
   ): MeetingAnalysisContext {
     return {
       meetingId,
@@ -129,6 +142,9 @@ export class ActionItemsPipeline {
       recentMeetingSummaries: projectContext.recentMeetingSummaries,
       openItemsSummary: projectContext.openItemsSummary,
       accountabilityAlerts: projectContext.accountabilityAlerts.map((item) => item.title),
+      resolvedItemsSummary: reconciliation?.resolvedItemsSummary,
+      readinessSignals: reconciliation?.readinessSignals ?? projectContext.readinessSignals,
+      projectPriority: reconciliation?.projectPriority ?? projectContext.projectPriority,
       projectContextSummary: projectContext.contextSummary,
     };
   }
@@ -165,6 +181,21 @@ export class ActionItemsPipeline {
     }));
 
     return await meetingItemsRepository.createBatch(records);
+  }
+
+  private async applyPriorItemUpdates(
+    meetingId: string,
+    reconciliation: ReturnType<typeof reconcileMeetingItems>
+  ): Promise<void> {
+    for (const update of reconciliation.priorItemUpdates) {
+      await meetingItemsRepository.syncStatusFromMeeting({
+        id: update.itemId,
+        meetingId,
+        status: update.newStatus,
+        updateDescription: update.updateDescription,
+        updatedBy: 'ai_product_manager',
+      });
+    }
   }
 
   /**

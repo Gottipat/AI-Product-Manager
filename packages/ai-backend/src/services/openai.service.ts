@@ -127,6 +127,9 @@ export interface MeetingAnalysisContext {
   recentMeetingSummaries?: string[] | undefined;
   openItemsSummary?: string[] | undefined;
   accountabilityAlerts?: string[] | undefined;
+  resolvedItemsSummary?: string[] | undefined;
+  readinessSignals?: string[] | undefined;
+  projectPriority?: 'low' | 'medium' | 'high' | 'critical' | undefined;
   projectContextSummary?: string | undefined;
 }
 
@@ -188,6 +191,15 @@ export class OpenAIService {
           ? `\n- ${context.accountabilityAlerts.join('\n- ')}`
           : 'n/a'
       }`,
+      `Resolved Carry-Over Items: ${
+        context.resolvedItemsSummary?.length
+          ? `\n- ${context.resolvedItemsSummary.join('\n- ')}`
+          : 'n/a'
+      }`,
+      `Readiness Signals: ${
+        context.readinessSignals?.length ? `\n- ${context.readinessSignals.join('\n- ')}` : 'n/a'
+      }`,
+      `Project Priority Signal: ${context.projectPriority ?? 'n/a'}`,
       `Project Context Summary:\n${context.projectContextSummary ?? 'n/a'}`,
     ].join('\n');
   }
@@ -418,6 +430,32 @@ export class OpenAIService {
     return MoMResponseSchema.parse(normalized);
   }
 
+  private applyReadinessGuard(
+    response: MoMResponse,
+    context?: MeetingAnalysisContext
+  ): MoMResponse {
+    const readinessSignals = context?.readinessSignals ?? [];
+    if (readinessSignals.length === 0) return response;
+
+    const hasActiveBlocker = readinessSignals.some((signal) =>
+      /\bopen\b|\bblocked\b|\brisk\b|\bpending\b|\boverdue\b|\bactive\b/i.test(signal)
+    );
+    if (!hasActiveBlocker) return response;
+
+    const optimisticReadinessPattern =
+      /\bready\b|\breadiness confirmed\b|\bcleared for launch\b|\bon track\b|\bconfirmed\b/i;
+
+    if (
+      optimisticReadinessPattern.test(response.executiveSummary) &&
+      !/conditional|blocked|risk|pending|open/i.test(response.executiveSummary)
+    ) {
+      const blockerSummary = readinessSignals.slice(0, 2).join('; ');
+      response.executiveSummary = `${response.executiveSummary} Readiness remains conditional because ${blockerSummary}.`;
+    }
+
+    return response;
+  }
+
   /**
    * Generate executive summary from transcript
    */
@@ -630,7 +668,9 @@ Rules:
 - Tie discussion points back to user impact, business goals, scope, timeline, dependencies, and tradeoffs when supported by the transcript.
 - Distinguish clearly between decisions, proposals, concerns, unresolved questions, and follow-ups.
 - Treat historical project context and accountability alerts as first-class inputs, not side notes.
+- Treat resolved carry-over items as closed unless the transcript re-opens them.
 - Explicitly call out overdue tasks, stale commitments, unresolved questions, and missing status updates when supported by the provided context.
+- Do not claim launch, beta, or delivery readiness is confirmed if the provided readiness signals still show open blockers, pending fixes, unresolved risks, or missing sign-off.
 - Do not invent product strategy, owners, dates, or rationale that are not grounded in the meeting context.
 - Prefer crisp, enterprise-ready language over conversational filler.
 - When information is ambiguous, capture the ambiguity explicitly as a risk or open question.
@@ -661,7 +701,7 @@ ${transcript}`,
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error('No response from OpenAI');
 
-    return this.normalizeMoMResponse(JSON.parse(content));
+    return this.applyReadinessGuard(this.normalizeMoMResponse(JSON.parse(content)), context);
   }
 
   /**

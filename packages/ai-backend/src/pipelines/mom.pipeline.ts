@@ -7,7 +7,11 @@ import { meetingRepository } from '../db/repositories/meeting.repository.js';
 import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
 import { momRepository } from '../db/repositories/mom.repository.js';
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
-import { dedupeContextualItems, type ContextualActionItem } from '../lib/productManager.js';
+import {
+  dedupeContextualItems,
+  reconcileMeetingItems,
+  type ContextualActionItem,
+} from '../lib/productManager.js';
 import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 import {
   openaiService,
@@ -75,7 +79,7 @@ export class MoMPipeline {
         meetingStartTime: meeting?.startTime ?? null,
       });
 
-      const context = this.buildContext(meetingId, meeting, transcriptEvents, projectContext);
+      const baseContext = this.buildContext(meetingId, meeting, transcriptEvents, projectContext);
 
       // Check if transcript is too long
       if (!openaiService.fitsInContext(transcriptText, 100000)) {
@@ -90,11 +94,35 @@ export class MoMPipeline {
         message: 'Extracting structured PM insights...',
       });
 
-      const extractedItems = await openaiService.extractActionItems(transcriptText, context);
-      const candidateItems = dedupeContextualItems([
+      const extractedItems = await openaiService.extractActionItems(transcriptText, baseContext);
+      const initialCandidateItems = dedupeContextualItems([
         ...extractedItems,
         ...projectContext.accountabilityAlerts,
       ]);
+      const reconciliation = reconcileMeetingItems({
+        currentItems: initialCandidateItems,
+        openItems: projectContext.openItems,
+        transcriptText,
+        referenceDate: meeting?.startTime ?? new Date(),
+      });
+
+      await meetingItemsRepository.deleteGeneratedByMeeting(meetingId, 'analysis_pipeline');
+      await this.saveActionItems(
+        meetingId,
+        null,
+        meeting?.projectId ?? null,
+        reconciliation.contextualItems,
+        'analysis_pipeline'
+      );
+      await this.applyPriorItemUpdates(meetingId, reconciliation);
+
+      const context = this.buildContext(
+        meetingId,
+        meeting,
+        transcriptEvents,
+        projectContext,
+        reconciliation
+      );
 
       this.updateProgress(meetingId, {
         status: 'generating',
@@ -105,9 +133,12 @@ export class MoMPipeline {
       const momResponse = await openaiService.generateMoMWithSeedItems(
         transcriptText,
         context,
-        candidateItems
+        reconciliation.contextualItems
       );
-      const finalItems = dedupeContextualItems([...candidateItems, ...momResponse.items]);
+      const finalItems = dedupeContextualItems([
+        ...reconciliation.contextualItems,
+        ...momResponse.items,
+      ]);
 
       // Step 3: Save to database
       this.updateProgress(meetingId, {
@@ -140,11 +171,13 @@ export class MoMPipeline {
 
       // Save action items
       await meetingItemsRepository.deleteByMomId(mom.id);
+      await meetingItemsRepository.deleteGeneratedByMeeting(meetingId, 'analysis_pipeline');
       const itemRecords = await this.saveActionItems(
         meetingId,
         mom.id,
         meeting?.projectId ?? null,
-        finalItems
+        finalItems,
+        'mom_pipeline'
       );
 
       // Step 4: Complete
@@ -208,9 +241,10 @@ export class MoMPipeline {
    */
   private async saveActionItems(
     meetingId: string,
-    momId: string,
+    momId: string | null,
     projectId: string | null,
-    items: ContextualActionItem[]
+    items: ContextualActionItem[],
+    generatedBy: string
   ): Promise<{ id: string }[]> {
     if (items.length === 0) return [];
 
@@ -229,7 +263,7 @@ export class MoMPipeline {
       aiConfidence: item.aiConfidence ?? null,
       sourceTranscriptRange: item.sourceTranscriptRange ?? null,
       metadata: {
-        generatedBy: 'mom_pipeline',
+        generatedBy,
         sourceQuote: item.sourceQuote,
         context: item.context,
         ...(item.metadata ?? {}),
@@ -239,11 +273,27 @@ export class MoMPipeline {
     return await meetingItemsRepository.createBatch(records);
   }
 
+  private async applyPriorItemUpdates(
+    meetingId: string,
+    reconciliation: ReturnType<typeof reconcileMeetingItems>
+  ): Promise<void> {
+    for (const update of reconciliation.priorItemUpdates) {
+      await meetingItemsRepository.syncStatusFromMeeting({
+        id: update.itemId,
+        meetingId,
+        status: update.newStatus,
+        updateDescription: update.updateDescription,
+        updatedBy: 'ai_product_manager',
+      });
+    }
+  }
+
   private buildContext(
     meetingId: string,
     meeting: Awaited<ReturnType<typeof meetingRepository.findById>>,
     transcriptEvents: Awaited<ReturnType<typeof transcriptRepository.findByMeetingId>>,
-    projectContext: Awaited<ReturnType<typeof productManagerService.buildProjectContext>>
+    projectContext: Awaited<ReturnType<typeof productManagerService.buildProjectContext>>,
+    reconciliation?: ReturnType<typeof reconcileMeetingItems>
   ): MeetingAnalysisContext {
     return {
       meetingId,
@@ -268,6 +318,9 @@ export class MoMPipeline {
       recentMeetingSummaries: projectContext.recentMeetingSummaries,
       openItemsSummary: projectContext.openItemsSummary,
       accountabilityAlerts: projectContext.accountabilityAlerts.map((item) => item.title),
+      resolvedItemsSummary: reconciliation?.resolvedItemsSummary,
+      readinessSignals: reconciliation?.readinessSignals ?? projectContext.readinessSignals,
+      projectPriority: reconciliation?.projectPriority ?? projectContext.projectPriority,
       projectContextSummary: projectContext.contextSummary,
     };
   }
