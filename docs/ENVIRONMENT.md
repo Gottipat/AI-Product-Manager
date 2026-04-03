@@ -10,6 +10,14 @@ cp packages/ai-backend/.env.example packages/ai-backend/.env
 nano packages/ai-backend/.env
 ```
 
+For Docker-based local runs, use the root Docker env template instead:
+
+```bash
+cp .env.docker.example .env.docker
+```
+
+See [docs/DOCKER_RUN.md](./DOCKER_RUN.md) for the full Docker workflow.
+
 ## Required Variables
 
 ### Database

@@ -72,6 +72,17 @@ pnpm install
 pnpm build
 ```
 
+### Docker
+
+If you want the full local stack in Docker, including the web app, API, and PostgreSQL:
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build
+```
+
+Full instructions: [docs/DOCKER_RUN.md](docs/DOCKER_RUN.md)
+
 ### Development
 
 ```bash
