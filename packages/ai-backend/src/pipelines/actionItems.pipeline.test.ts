@@ -29,6 +29,17 @@ vi.mock('../db/repositories/transcript.repository.js', () => ({
   },
 }));
 
+vi.mock('../services/productManager.service.js', () => ({
+  productManagerService: {
+    buildProjectContext: vi.fn().mockResolvedValue({
+      recentMeetingSummaries: [],
+      openItemsSummary: [],
+      accountabilityAlerts: [],
+      contextSummary: 'No project context.',
+    }),
+  },
+}));
+
 // Mock OpenAI service
 vi.mock('../services/openai.service.js', () => ({
   openaiService: {

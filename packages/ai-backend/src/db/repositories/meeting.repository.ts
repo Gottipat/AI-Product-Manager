@@ -3,7 +3,7 @@
  * @description Data access layer for meetings table
  */
 
-import { eq, desc, and, gte, lte } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, not } from 'drizzle-orm';
 
 import { db } from '../index.js';
 import { meetings, participants } from '../schema/index.js';
@@ -94,6 +94,27 @@ export class MeetingRepository {
       limit,
       with: {
         participants: true,
+      },
+    });
+  }
+
+  /**
+   * Find recent meetings for a project, excluding the current meeting when needed.
+   */
+  async findRecentByProject(projectId: string, limit = 5, excludeMeetingId?: string) {
+    const conditions = [eq(meetings.projectId, projectId)];
+    if (excludeMeetingId) {
+      conditions.push(not(eq(meetings.id, excludeMeetingId)));
+    }
+
+    return db.query.meetings.findMany({
+      where: and(...conditions),
+      orderBy: [desc(meetings.startTime), desc(meetings.createdAt)],
+      limit,
+      with: {
+        participants: true,
+        project: true,
+        organization: true,
       },
     });
   }

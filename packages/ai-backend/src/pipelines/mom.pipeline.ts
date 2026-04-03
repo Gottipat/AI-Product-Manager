@@ -7,13 +7,14 @@ import { meetingRepository } from '../db/repositories/meeting.repository.js';
 import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
 import { momRepository } from '../db/repositories/mom.repository.js';
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
+import { dedupeContextualItems, type ContextualActionItem } from '../lib/productManager.js';
 import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 import {
   openaiService,
   type Highlight,
-  type ActionItem,
   type MeetingAnalysisContext,
 } from '../services/openai.service.js';
+import { productManagerService } from '../services/productManager.service.js';
 
 // ============================================================================
 // TYPES
@@ -67,7 +68,14 @@ export class MoMPipeline {
         throw new Error('No transcript available for this meeting');
       }
 
-      const context = this.buildContext(meetingId, meeting, transcriptEvents);
+      const projectContext = await productManagerService.buildProjectContext({
+        meetingId,
+        projectId: meeting?.projectId ?? null,
+        transcriptText,
+        meetingStartTime: meeting?.startTime ?? null,
+      });
+
+      const context = this.buildContext(meetingId, meeting, transcriptEvents, projectContext);
 
       // Check if transcript is too long
       if (!openaiService.fitsInContext(transcriptText, 100000)) {
@@ -79,10 +87,27 @@ export class MoMPipeline {
       this.updateProgress(meetingId, {
         status: 'generating',
         progress: 30,
-        message: 'Generating MoM with AI...',
+        message: 'Extracting structured PM insights...',
       });
 
-      const momResponse = await openaiService.generateMoM(transcriptText, context);
+      const extractedItems = await openaiService.extractActionItems(transcriptText, context);
+      const candidateItems = dedupeContextualItems([
+        ...extractedItems,
+        ...projectContext.accountabilityAlerts,
+      ]);
+
+      this.updateProgress(meetingId, {
+        status: 'generating',
+        progress: 55,
+        message: 'Generating context-aware MoM with AI...',
+      });
+
+      const momResponse = await openaiService.generateMoMWithSeedItems(
+        transcriptText,
+        context,
+        candidateItems
+      );
+      const finalItems = dedupeContextualItems([...candidateItems, ...momResponse.items]);
 
       // Step 3: Save to database
       this.updateProgress(meetingId, {
@@ -115,7 +140,12 @@ export class MoMPipeline {
 
       // Save action items
       await meetingItemsRepository.deleteByMomId(mom.id);
-      const itemRecords = await this.saveActionItems(meetingId, mom.id, momResponse.items);
+      const itemRecords = await this.saveActionItems(
+        meetingId,
+        mom.id,
+        meeting?.projectId ?? null,
+        finalItems
+      );
 
       // Step 4: Complete
       this.updateProgress(meetingId, {
@@ -179,13 +209,15 @@ export class MoMPipeline {
   private async saveActionItems(
     meetingId: string,
     momId: string,
-    items: ActionItem[]
+    projectId: string | null,
+    items: ContextualActionItem[]
   ): Promise<{ id: string }[]> {
     if (items.length === 0) return [];
 
     const records = items.map((item) => ({
       meetingId,
       momId,
+      projectId,
       itemType: item.itemType,
       title: item.title,
       description: item.description,
@@ -200,6 +232,7 @@ export class MoMPipeline {
         generatedBy: 'mom_pipeline',
         sourceQuote: item.sourceQuote,
         context: item.context,
+        ...(item.metadata ?? {}),
       },
     }));
 
@@ -209,7 +242,8 @@ export class MoMPipeline {
   private buildContext(
     meetingId: string,
     meeting: Awaited<ReturnType<typeof meetingRepository.findById>>,
-    transcriptEvents: Awaited<ReturnType<typeof transcriptRepository.findByMeetingId>>
+    transcriptEvents: Awaited<ReturnType<typeof transcriptRepository.findByMeetingId>>,
+    projectContext: Awaited<ReturnType<typeof productManagerService.buildProjectContext>>
   ): MeetingAnalysisContext {
     return {
       meetingId,
@@ -231,6 +265,10 @@ export class MoMPipeline {
         isBot: participant.isBot,
       })),
       transcript: getTranscriptSpeakerStats(transcriptEvents),
+      recentMeetingSummaries: projectContext.recentMeetingSummaries,
+      openItemsSummary: projectContext.openItemsSummary,
+      accountabilityAlerts: projectContext.accountabilityAlerts.map((item) => item.title),
+      projectContextSummary: projectContext.contextSummary,
     };
   }
 

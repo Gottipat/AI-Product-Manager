@@ -124,6 +124,10 @@ export interface MeetingAnalysisContext {
         lastCapturedAt?: string | undefined;
       }
     | undefined;
+  recentMeetingSummaries?: string[] | undefined;
+  openItemsSummary?: string[] | undefined;
+  accountabilityAlerts?: string[] | undefined;
+  projectContextSummary?: string | undefined;
 }
 
 // ============================================================================
@@ -171,6 +175,20 @@ export class OpenAIService {
       }`,
       `Transcript First Event: ${context.transcript?.firstCapturedAt ?? 'n/a'}`,
       `Transcript Last Event: ${context.transcript?.lastCapturedAt ?? 'n/a'}`,
+      `Recent Project Meetings: ${
+        context.recentMeetingSummaries?.length
+          ? `\n- ${context.recentMeetingSummaries.join('\n- ')}`
+          : 'n/a'
+      }`,
+      `Open Project Items: ${
+        context.openItemsSummary?.length ? `\n- ${context.openItemsSummary.join('\n- ')}` : 'n/a'
+      }`,
+      `Accountability Alerts: ${
+        context.accountabilityAlerts?.length
+          ? `\n- ${context.accountabilityAlerts.join('\n- ')}`
+          : 'n/a'
+      }`,
+      `Project Context Summary:\n${context.projectContextSummary ?? 'n/a'}`,
     ].join('\n');
   }
 
@@ -283,6 +301,13 @@ export class OpenAIService {
           ? value.severity.trim().toLowerCase()
           : undefined;
 
+    const rawDueDate =
+      typeof value.dueDate === 'string'
+        ? value.dueDate
+        : typeof value.targetDate === 'string'
+          ? value.targetDate
+          : undefined;
+
     return {
       itemType:
         typeof value.itemType === 'string'
@@ -318,12 +343,7 @@ export class OpenAIService {
           : typeof value.ownerEmail === 'string'
             ? value.ownerEmail
             : undefined,
-      dueDate:
-        typeof value.dueDate === 'string'
-          ? value.dueDate
-          : typeof value.targetDate === 'string'
-            ? value.targetDate
-            : undefined,
+      dueDate: this.normalizeDueDate(rawDueDate),
       priority:
         normalizedPriority === 'critical' ||
         normalizedPriority === 'high' ||
@@ -347,6 +367,19 @@ export class OpenAIService {
           ? value.sourceTranscriptRange
           : undefined,
     };
+  }
+
+  private normalizeDueDate(value: string | undefined): string | undefined {
+    if (!value) return undefined;
+
+    const trimmed = value.trim();
+
+    // Persist only true ISO calendar dates; relative phrases belong in context, not a DATE column.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    return undefined;
   }
 
   private normalizeMoMResponse(raw: unknown): MoMResponse {
@@ -545,6 +578,31 @@ ${transcript}`,
    * Generate complete MoM from transcript
    */
   async generateMoM(transcript: string, context?: MeetingAnalysisContext): Promise<MoMResponse> {
+    return this.generateMoMWithSeedItems(transcript, context);
+  }
+
+  async generateMoMWithSeedItems(
+    transcript: string,
+    context?: MeetingAnalysisContext,
+    seedItems: ActionItem[] = []
+  ): Promise<MoMResponse> {
+    const seedItemsBlock =
+      seedItems.length > 0
+        ? JSON.stringify(
+            seedItems.map((item) => ({
+              itemType: item.itemType,
+              title: item.title,
+              description: item.description,
+              assignee: item.assignee,
+              dueDate: item.dueDate,
+              priority: item.priority,
+              context: item.context,
+            })),
+            null,
+            2
+          )
+        : '[]';
+
     const response = await openai.chat.completions.create({
       model: this.model,
       messages: [
@@ -571,11 +629,14 @@ Rules:
 - Behave like a PM synthesizing context for leadership and the delivery team.
 - Tie discussion points back to user impact, business goals, scope, timeline, dependencies, and tradeoffs when supported by the transcript.
 - Distinguish clearly between decisions, proposals, concerns, unresolved questions, and follow-ups.
+- Treat historical project context and accountability alerts as first-class inputs, not side notes.
+- Explicitly call out overdue tasks, stale commitments, unresolved questions, and missing status updates when supported by the provided context.
 - Do not invent product strategy, owners, dates, or rationale that are not grounded in the meeting context.
 - Prefer crisp, enterprise-ready language over conversational filler.
 - When information is ambiguous, capture the ambiguity explicitly as a risk or open question.
 - Rate highlight importance 1-10.
 - For extracted items, include aiConfidence and sourceTranscriptRange whenever possible.
+- Use the provided candidate items as a starting point, refine them where needed, and avoid duplicating the same follow-up in multiple forms.
 
 Return your response as JSON.`,
         },
@@ -583,6 +644,9 @@ Return your response as JSON.`,
           role: 'user',
           content: `Meeting context:
 ${this.buildContextBlock(context)}
+
+Candidate accountability and extraction items:
+${seedItemsBlock}
 
 Generate complete Minutes of Meeting from this transcript:
 

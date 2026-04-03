@@ -80,6 +80,28 @@ export class MeetingItemsRepository {
   }
 
   /**
+   * Find open items for a project, optionally excluding the current meeting.
+   */
+  async findOpenByProjectId(projectId: string, options: { excludeMeetingId?: string } = {}) {
+    const { excludeMeetingId } = options;
+    const conditions = [
+      eq(meetingItems.projectId, projectId),
+      not(eq(meetingItems.status, 'completed')),
+      not(eq(meetingItems.status, 'cancelled')),
+    ];
+
+    if (excludeMeetingId) {
+      conditions.push(not(eq(meetingItems.meetingId, excludeMeetingId)));
+    }
+
+    return db
+      .select()
+      .from(meetingItems)
+      .where(and(...conditions))
+      .orderBy(desc(meetingItems.updatedAt), desc(meetingItems.createdAt));
+  }
+
+  /**
    * Find items by type
    */
   async findByType(
