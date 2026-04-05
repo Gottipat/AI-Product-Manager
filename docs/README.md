@@ -4,19 +4,20 @@
 
 ## Quick Links
 
-| Doc                                 | Purpose                             |
-| ----------------------------------- | ----------------------------------- |
-| [Getting Started](#getting-started) | Set up your development environment |
-| [Architecture](./ARCHITECTURE.md)   | System design and package structure |
-| [API Contracts](./API_CONTRACTS.md) | API endpoints and data formats      |
-| [Database](./database/OVERVIEW.md)  | Schema, migrations, and operations  |
-| [Testing](./TESTING.md)             | Test conventions and running tests  |
-| [Contributing](./CONTRIBUTING.md)   | Code style and PR process           |
-| [Developer Tooling](./TOOLING.md)   | Pre-push hooks, linting, formatting |
-| [Docker Run](./DOCKER_RUN.md)       | Team Docker setup and run guide     |
-| [Dataset Spec](./DATASET_SPEC.md)   | Longitudinal benchmark design       |
-| [Eval Rubric](./EVAL_RUBRIC.md)     | PM-grade system evaluation          |
-| [Paper Outline](./PAPER_OUTLINE.md) | Research paper structure            |
+| Doc                                         | Purpose                                   |
+| ------------------------------------------- | ----------------------------------------- |
+| [Getting Started](#getting-started)         | Set up your development environment       |
+| [Architecture](./ARCHITECTURE.md)           | System design and package structure       |
+| [API Contracts](./API_CONTRACTS.md)         | API endpoints and data formats            |
+| [Database](./database/OVERVIEW.md)          | Schema, migrations, and operations        |
+| [Testing](./TESTING.md)                     | Test conventions and running tests        |
+| [Contributing](./CONTRIBUTING.md)           | Code style and PR process                 |
+| [Developer Tooling](./TOOLING.md)           | Pre-push hooks, linting, formatting       |
+| [Docker Run](./DOCKER_RUN.md)               | Team Docker setup and run guide           |
+| [Dataset Spec](./DATASET_SPEC.md)           | Longitudinal benchmark design             |
+| [Eval Rubric](./EVAL_RUBRIC.md)             | PM-grade system evaluation                |
+| [Paper Outline](./PAPER_OUTLINE.md)         | Research paper structure                  |
+| [Benchmark Harness](../benchmark/README.md) | Scenario runner for sequential evaluation |
 
 ---
 
@@ -71,6 +72,7 @@ pnpm dev
 - [TOOLING.md](./TOOLING.md) - Git hooks, linting, formatting, CI/CD
 - [CONTRIBUTING.md](./CONTRIBUTING.md) - Branch strategy, code style, PR process
 - [DOCKER_RUN.md](./DOCKER_RUN.md) - Full Docker Compose workflow for teammates
+- [../benchmark/README.md](../benchmark/README.md) - Sequential benchmark harness and scenario runner
 
 ---
 

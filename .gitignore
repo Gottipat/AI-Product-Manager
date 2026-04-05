@@ -42,6 +42,8 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+benchmark/reports/*.json
+benchmark/reports/*.md
 
 # Web package (not ready yet)
 packages/web/

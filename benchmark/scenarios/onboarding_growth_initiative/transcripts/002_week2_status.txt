@@ -1,0 +1,20 @@
+Started at: 2026-04-14 10:00 AM
+
+[10:00 AM] Kumar: Let’s do a status review on onboarding growth. I want to know what moved, what slipped, and what still blocks beta.
+[10:01 AM] Priya: Wireframes are done. Design review happened Friday, and feedback was mostly about how much pricing information to expose before account creation.
+[10:02 AM] Subhash: The event taxonomy is about eighty percent done. I need two more days because the identity team changed some of the event names in their draft API notes.
+[10:03 AM] Kumar: So that slipped from April 11 to April 16.
+[10:03 AM] Subhash: Yes, that’s right.
+[10:04 AM] Neha: I started the dashboard, but without the final taxonomy I can only stub the funnel. The dashboard should be ready by next sprint review if taxonomy is stable.
+[10:05 AM] Kumar: That is not a real date, so let’s note that it is still pending and needs a concrete date.
+[10:06 AM] Maya: Support wants to know if guest checkout is phase one because macros and escalation paths depend on that.
+[10:07 AM] Kumar: Finance alignment is not done yet. I met with them briefly, but I still need a final answer on the pricing guardrails and whether pre-account pricing display affects experiment validity.
+[10:08 AM] Rahul: On the compliance side, I still need a definitive answer on whether guest emails are persisted or only held in session.
+[10:09 AM] Subhash: Bigger blocker: identity team did not deliver the sandbox on April 15 as promised. We have API docs, but not a usable environment.
+[10:10 AM] Anita: We need a fallback plan if identity does not unblock us this week.
+[10:11 AM] Subhash: I can draft a fallback proposal by Friday, April 18, so we are not waiting passively.
+[10:12 AM] Arjun: QA still cannot finalize the test plan without the phase one decision.
+[10:13 AM] Kumar: Understood. Two unresolved questions remain. One, is guest checkout phase one. Two, what are the pricing guardrails.
+[10:14 AM] Neha: There is also a data risk. If the analytics dashboard is delayed, we will not have a clean baseline before beta.
+[10:15 AM] Kumar: Good point. Please capture that as a delivery risk.
+[10:16 AM] Kumar: So updated commitments are: Subhash finishes taxonomy by April 16 and fallback proposal by April 18. Finance alignment is still with me and remains unresolved. Dashboard still pending. Phase one decision still open.

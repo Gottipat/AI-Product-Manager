@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "1.0.0",
+  "scenarioId": "onboarding_growth_initiative_v1",
+  "displayName": "Onboarding Growth Initiative - 5 Week Accountability Regression",
+  "project": {
+    "name": "Onboarding Growth Initiative Benchmark",
+    "description": "Recurring B2B SaaS product meetings focused on onboarding growth, launch readiness, ownership, deadlines, and unresolved questions.",
+    "isRecurring": true
+  },
+  "defaultAnalysisMode": "product_manager",
+  "defaultContextNote": "Act like a senior AI product manager. Track carry-over action items, unresolved questions, overdue deadlines, missing status updates, dependencies, risks, launch readiness, and accountability by owner or team.",
+  "meetings": [
+    {
+      "sequenceNumber": 1,
+      "slug": "week1_kickoff",
+      "title": "Onboarding Growth Initiative - Week 1 Kickoff",
+      "transcriptPath": "./transcripts/001_week1_kickoff.txt",
+      "expectations": {
+        "mustIncludeItemTitles": [
+          "guest checkout",
+          "pricing experiment guardrails",
+          "identity",
+          "phase one"
+        ],
+        "mustIncludeSummaryPhrases": ["guest checkout", "activation", "identity"]
+      }
+    },
+    {
+      "sequenceNumber": 2,
+      "slug": "week2_status",
+      "title": "Onboarding Growth Initiative - Week 2 Status Review",
+      "transcriptPath": "./transcripts/002_week2_status.txt",
+      "expectations": {
+        "mustIncludeItemTitles": ["fallback proposal", "finance", "phase one", "identity team"],
+        "mustIncludeSummaryPhrases": ["blocker", "beta"]
+      }
+    },
+    {
+      "sequenceNumber": 3,
+      "slug": "week3_scope_risk",
+      "title": "Onboarding Growth Initiative - Week 3 Scope And Risk Review",
+      "transcriptPath": "./transcripts/003_week3_scope_risk.txt",
+      "expectations": {
+        "mustIncludeItemTitles": ["support macros", "dashboard", "pricing", "beta"],
+        "mustIncludeSummaryPhrases": ["risk", "April 29"]
+      }
+    },
+    {
+      "sequenceNumber": 4,
+      "slug": "week4_replan",
+      "title": "Onboarding Growth Initiative - Week 4 Replan",
+      "transcriptPath": "./transcripts/004_week4_replan.txt",
+      "expectations": {
+        "mustIncludeItemTitles": ["launch readiness review", "launch", "compliance", "guardrails"],
+        "mustIncludeSummaryPhrases": ["April 29", "May 6"]
+      }
+    },
+    {
+      "sequenceNumber": 5,
+      "slug": "week5_launch_readiness",
+      "title": "Onboarding Growth Initiative - Week 5 Launch Readiness",
+      "transcriptPath": "./transcripts/005_week5_launch_readiness.txt",
+      "expectations": {
+        "mustIncludeItemTitles": [
+          "duplicate account",
+          "launch comms",
+          "cannibalization",
+          "workaround"
+        ],
+        "mustNotIncludeItemTitles": [
+          "open question still unresolved: qa needs phase one decision",
+          "decision on guest checkout inclusion in phase one"
+        ],
+        "mustIncludeSummaryPhrases": ["launch", "compliance", "dashboard"]
+      }
+    }
+  ],
+  "finalProjectExpectations": {
+    "mustHaveItemStatuses": [
+      {
+        "titleLike": "phase one",
+        "status": "completed"
+      },
+      {
+        "titleLike": "launch comms",
+        "status": "pending"
+      }
+    ],
+    "mustNotHaveOpenTitles": [
+      "qa needs phase one decision",
+      "guest checkout inclusion in phase one"
+    ]
+  }
+}
