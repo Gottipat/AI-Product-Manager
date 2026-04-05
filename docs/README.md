@@ -14,6 +14,9 @@
 | [Contributing](./CONTRIBUTING.md)   | Code style and PR process           |
 | [Developer Tooling](./TOOLING.md)   | Pre-push hooks, linting, formatting |
 | [Docker Run](./DOCKER_RUN.md)       | Team Docker setup and run guide     |
+| [Dataset Spec](./DATASET_SPEC.md)   | Longitudinal benchmark design       |
+| [Eval Rubric](./EVAL_RUBRIC.md)     | PM-grade system evaluation          |
+| [Paper Outline](./PAPER_OUTLINE.md) | Research paper structure            |
 
 ---
 
@@ -57,6 +60,10 @@ pnpm dev
 
 - [AI_PIPELINE.md](./AI_PIPELINE.md) - OpenAI integration, MoM generation, RAG search
 - [ENVIRONMENT.md](./ENVIRONMENT.md) - Environment variables and configuration
+- [AI_PRODUCT_MANAGER_RESEARCH_PLAN.md](./AI_PRODUCT_MANAGER_RESEARCH_PLAN.md) - Company, product, and research thesis
+- [DATASET_SPEC.md](./DATASET_SPEC.md) - Dataset schema for recurring-meeting evaluation
+- [EVAL_RUBRIC.md](./EVAL_RUBRIC.md) - Automatic and human PM evaluation framework
+- [PAPER_OUTLINE.md](./PAPER_OUTLINE.md) - Draft outline for the first research paper
 
 ### Development
 
