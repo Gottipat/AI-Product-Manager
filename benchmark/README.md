@@ -96,16 +96,11 @@ pnpm benchmark:compare -- benchmark/scenarios/onboarding_growth_initiative/scena
 
 ### Inside the Docker backend container
 
-If host networking is awkward, copy the benchmark directory into the container and run:
+If host networking is awkward, run the harness from the workspace inside the backend container:
 
 ```bash
-node /app/benchmark/run-longitudinal-eval.ts
-```
-
-Or use `tsx` if you are running from the workspace:
-
-```bash
-pnpm --filter @meeting-ai/ai-backend exec tsx ../../benchmark/run-longitudinal-eval.ts
+docker exec meeting-ai-backend \
+  pnpm --filter @meeting-ai/ai-backend exec tsx ../../benchmark/run-longitudinal-eval.ts --system all
 ```
 
 When running inside Docker, prefer:
@@ -113,6 +108,8 @@ When running inside Docker, prefer:
 ```bash
 BENCHMARK_API_BASE_URL=http://127.0.0.1:3002/api/v1
 ```
+
+That command writes reports under `/app/benchmark/reports` inside the container.
 
 ## Environment Variables
 
@@ -138,6 +135,15 @@ The generated report includes:
 - aggregate pass/fail totals
 
 See [report schema](./schema/longitudinal-report.schema.json).
+
+## Expected Result On This Branch
+
+For `benchmark/scenarios/onboarding_growth_initiative/scenario.json`, the current expected comparison result on `feat/accountability-ai-pm` is:
+
+- `current_system`: `38 passed / 0 failed`
+- `transcript_only`: `32 passed / 6 failed`
+
+If the transcript-only baseline ties or beats the stateful system, that is a regression in project-memory reasoning or accountability carry-forward.
 
 ## Important Constraint
 

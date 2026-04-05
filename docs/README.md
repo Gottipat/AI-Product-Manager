@@ -23,6 +23,28 @@
 
 ## Getting Started
 
+### Recommended: Docker
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build -d
+```
+
+Set at least:
+
+```env
+OPENAI_API_KEY=sk-your-openai-key
+```
+
+Then open:
+
+- Web: `http://localhost:3001`
+- API health: `http://localhost:3002/api/v1/health`
+
+See [DOCKER_RUN.md](./DOCKER_RUN.md) for the full teammate workflow.
+
+### Local Development
+
 ```bash
 # 1. Clone and install
 git clone https://github.com/KumarSashank/AI-Product-Manager.git
@@ -38,6 +60,22 @@ pnpm --filter @meeting-ai/ai-backend db:push
 
 # 4. Run development servers
 pnpm dev
+```
+
+### Quick Validation Commands
+
+```bash
+# Full workspace tests
+pnpm test
+
+# Full workspace typecheck
+pnpm typecheck
+
+# Benchmark typecheck
+pnpm benchmark:typecheck
+
+# Compare the stateful system against transcript-only baseline
+pnpm benchmark:compare
 ```
 
 ---
