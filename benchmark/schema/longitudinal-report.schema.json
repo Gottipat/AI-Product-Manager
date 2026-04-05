@@ -3,7 +3,7 @@
   "$id": "https://meeting-ai.local/schemas/longitudinal-report.schema.json",
   "title": "Longitudinal Benchmark Report",
   "type": "object",
-  "required": ["scenario", "run", "summary", "meetings"],
+  "required": ["scenario", "run", "summary", "systems"],
   "properties": {
     "scenario": {
       "type": "object"
@@ -13,9 +13,12 @@
     },
     "summary": {
       "type": "object",
-      "required": ["meetingsProcessed", "checksPassed", "checksFailed"],
+      "required": ["systemsRun", "totalMeetingsProcessed", "checksPassed", "checksFailed"],
       "properties": {
-        "meetingsProcessed": {
+        "systemsRun": {
+          "type": "integer"
+        },
+        "totalMeetingsProcessed": {
           "type": "integer"
         },
         "checksPassed": {
@@ -26,17 +29,14 @@
         }
       }
     },
-    "meetings": {
+    "systems": {
       "type": "array",
       "items": {
         "type": "object"
       }
     },
-    "finalProjectChecks": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
+    "comparison": {
+      "type": "object"
     }
   }
 }

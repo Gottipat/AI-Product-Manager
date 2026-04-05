@@ -1,8 +1,8 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
-    "outDir": "./dist",
+    "rootDir": "..",
+    "outDir": "../dist/benchmark",
     "types": ["node"]
   },
   "include": ["./**/*.ts"],

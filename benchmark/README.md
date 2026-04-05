@@ -6,19 +6,24 @@
 
 This benchmark exists to test the system as a `stateful execution-memory product`, not just a single-meeting summarizer.
 
-The harness processes meetings in order, stores project state in the backend, and evaluates whether later meetings correctly use earlier context.
+The harness can now evaluate both:
+
+- the current stateful accountability system
+- a transcript-only baseline with no prior project memory
+
+That lets us measure whether longitudinal project memory is actually improving outcomes.
 
 ## What It Does
 
 For a given scenario, the runner:
 
 1. checks backend health
-2. creates a fresh project
-3. uploads each meeting transcript sequentially
-4. fetches generated MoM and extracted items after every upload
+2. runs one or more analysis systems against the same scenario
+3. processes meetings sequentially for each system
+4. fetches generated MoM and extracted items after every meeting
 5. runs expectation checks for each meeting
-6. fetches final project state
-7. writes a JSON report under `benchmark/reports/`
+6. evaluates final project-state expectations where applicable
+7. writes a JSON comparison report under `benchmark/reports/`
 
 ## Directory Layout
 
@@ -58,10 +63,16 @@ See:
 
 ## Running The Benchmark
 
-### Against a locally running backend
+### Current stateful system only
 
 ```bash
 pnpm benchmark:longitudinal
+```
+
+### Compare the stateful system against the transcript-only baseline
+
+```bash
+pnpm benchmark:compare
 ```
 
 ### Against a specific scenario
@@ -70,11 +81,17 @@ pnpm benchmark:longitudinal
 pnpm benchmark:longitudinal -- benchmark/scenarios/onboarding_growth_initiative/scenario.json
 ```
 
+### Run only the transcript-only baseline
+
+```bash
+pnpm benchmark:longitudinal -- --system transcript_only benchmark/scenarios/onboarding_growth_initiative/scenario.json
+```
+
 ### Against a different backend URL
 
 ```bash
 BENCHMARK_API_BASE_URL=http://localhost:3002/api/v1 \
-pnpm benchmark:longitudinal -- benchmark/scenarios/onboarding_growth_initiative/scenario.json
+pnpm benchmark:compare -- benchmark/scenarios/onboarding_growth_initiative/scenario.json
 ```
 
 ### Inside the Docker backend container
@@ -113,13 +130,11 @@ BENCHMARK_API_BASE_URL=http://127.0.0.1:3002/api/v1
 The generated report includes:
 
 - scenario metadata
-- health check result
-- created project id
-- each uploaded meeting id
-- upload and MoM results
-- extracted item summaries
-- expectation pass/fail checks
+- requested systems
+- per-system run summaries
+- meeting-by-meeting pass/fail checks
 - final project-state checks
+- side-by-side system ranking and deltas
 - aggregate pass/fail totals
 
 See [report schema](./schema/longitudinal-report.schema.json).
@@ -136,10 +151,18 @@ The whole point is to simulate the real product loop:
 - week 3 consumes and updates it
 - and so on
 
+## Current Systems
+
+- `current_system`
+  Uses the real backend workflow: transcript storage, structured extraction, carry-forward reconciliation, project-memory queries, and final MoM generation.
+
+- `transcript_only`
+  Uses the current meeting transcript plus meeting-local metadata only. No historical project state is provided.
+
 ## Near-Term Next Steps
 
 - add 10 to 20 more scenarios
-- add baseline runner support
+- add more ablations beyond transcript-only
 - add lifecycle-transition scoring against gold labels
 - add a Markdown summary report alongside JSON
 - add PM human-evaluation export sheets
