@@ -69,6 +69,42 @@ export class MeetingItemsRepository {
   }
 
   /**
+   * Update editable item fields.
+   */
+  async update(
+    id: string,
+    data: Partial<
+      Pick<
+        MeetingItem,
+        'title' | 'description' | 'assignee' | 'assigneeEmail' | 'dueDate' | 'priority'
+      >
+    >
+  ) {
+    const existing = await db.query.meetingItems.findFirst({
+      where: eq(meetingItems.id, id),
+    });
+    if (!existing) return null;
+
+    const updateData: Partial<typeof meetingItems.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.assignee !== undefined) updateData.assignee = data.assignee;
+    if (data.assigneeEmail !== undefined) updateData.assigneeEmail = data.assigneeEmail;
+    if (data.dueDate !== undefined) updateData.dueDate = data.dueDate;
+    if (data.priority !== undefined) updateData.priority = data.priority;
+
+    const result = await db
+      .update(meetingItems)
+      .set(updateData)
+      .where(eq(meetingItems.id, id))
+      .returning();
+    return result[0];
+  }
+
+  /**
    * Find all items for a meeting
    */
   async findByMeetingId(meetingId: string) {

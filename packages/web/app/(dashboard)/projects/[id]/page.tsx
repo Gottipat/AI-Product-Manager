@@ -5,9 +5,29 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ChatInterface } from '@/components/chat/ChatInterface';
-import { TaskList } from '@/components/projects/TaskList';
+import { ItemsWorkspace } from '@/components/items/ItemsWorkspace';
 import { TranscriptUpload } from '@/components/transcript/TranscriptUpload';
-import { projectsApi, botApi, Project, Meeting, MeetingItem, MoM, ProjectStats } from '@/lib/api';
+import {
+  botApi,
+  meetingItemsApi,
+  Meeting,
+  MeetingItem,
+  MeetingItemStatus,
+  MeetingItemUpdateInput,
+  MoM,
+  Project,
+  ProjectStats,
+  projectsApi,
+} from '@/lib/api';
+
+function buildProjectStats(items: MeetingItem[], meetingsCount: number): ProjectStats {
+  return {
+    totalMeetings: meetingsCount,
+    totalItems: items.length,
+    pendingItems: items.filter((item) => item.status === 'pending').length,
+    completedItems: items.filter((item) => item.status === 'completed').length,
+  };
+}
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -20,7 +40,6 @@ export default function ProjectDetailPage() {
   const [stats, setStats] = useState<ProjectStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'items' | 'chat'>('overview');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'action_item' | 'decision' | 'blocker'>('all');
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [meetingLink, setMeetingLink] = useState('');
@@ -97,7 +116,30 @@ export default function ProjectDetailPage() {
     return () => clearInterval(interval);
   }, [botSessionId, botStatus]);
 
-  const filteredItems = activeFilter === 'all' ? items : items.filter((item) => item.itemType === activeFilter);
+  const meetingsById = meetings.reduce<Record<string, Meeting>>((accumulator, meeting) => {
+    accumulator[meeting.id] = meeting;
+    return accumulator;
+  }, {});
+
+  const handleItemStatusChange = async (itemId: string, status: MeetingItemStatus) => {
+    const response = await meetingItemsApi.updateStatus(itemId, status, 'project_workspace');
+    const updatedItem = response.item;
+
+    setItems((current) => {
+      const nextItems = current.map((item) => (item.id === itemId ? { ...item, ...updatedItem } : item));
+      setStats(buildProjectStats(nextItems, meetings.length));
+      return nextItems;
+    });
+  };
+
+  const handleItemUpdate = async (itemId: string, updates: MeetingItemUpdateInput) => {
+    const response = await meetingItemsApi.update(itemId, updates);
+    const updatedItem = response.item;
+
+    setItems((current) =>
+      current.map((item) => (item.id === itemId ? { ...item, ...updatedItem } : item))
+    );
+  };
 
   if (loading) {
     return (
@@ -322,24 +364,14 @@ export default function ProjectDetailPage() {
 
       {/* ── Items Tab ── */}
       {activeTab === 'items' && (
-        <div>
-          <div className="flex gap-2 mb-4">
-            {(['all', 'action_item', 'decision', 'blocker'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveFilter(tab)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                  activeFilter === tab
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/[0.04] text-gray-400 hover:bg-white/[0.08] hover:text-white'
-                }`}
-              >
-                {tab === 'all' ? 'All' : tab === 'action_item' ? 'Actions' : tab === 'decision' ? 'Decisions' : 'Blockers'}
-              </button>
-            ))}
-          </div>
-          <TaskList items={filteredItems} />
-        </div>
+        <ItemsWorkspace
+          items={items}
+          meetingsById={meetingsById}
+          workspaceKey={`project:${projectId}`}
+          emptyMessage="No items yet. Upload a transcript or join a meeting to extract action items, blockers, decisions, and follow-ups."
+          onStatusChange={handleItemStatusChange}
+          onItemUpdate={handleItemUpdate}
+        />
       )}
 
       {/* ── Chat Tab ── */}
