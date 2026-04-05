@@ -9,6 +9,8 @@ import { meetingItemsRepository } from '../db/repositories/meetingItems.reposito
 import { momRepository } from '../db/repositories/mom.repository.js';
 import {
   buildProjectContextSnapshot,
+  readAccountabilityDetails,
+  isSyntheticAccountabilityItem,
   type ProjectContextSnapshot,
   type ProjectContextItem,
   type RecentMeetingContext,
@@ -29,6 +31,7 @@ export class ProductManagerService {
         recentMeetingSummaries: [],
         openItemsSummary: [],
         accountabilityAlerts: [],
+        accountabilityOwners: [],
         readinessSignals: [],
         projectPriority: 'low',
         contextSummary:
@@ -57,20 +60,35 @@ export class ProductManagerService {
       });
     }
 
-    const projectItems: ProjectContextItem[] = openItems.map((item) => ({
-      id: item.id,
-      meetingId: item.meetingId,
-      itemType: item.itemType,
-      title: item.title,
-      description: item.description,
-      assignee: item.assignee,
-      assigneeEmail: item.assigneeEmail,
-      dueDate: item.dueDate,
-      status: item.status,
-      priority: item.priority,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-    }));
+    const projectItems: ProjectContextItem[] = openItems
+      .filter((item) => !isSyntheticAccountabilityItem(item.metadata))
+      .map((item) => {
+        const accountability = readAccountabilityDetails({
+          assignee: item.assignee,
+          metadata: item.metadata,
+        });
+
+        return {
+          id: item.id,
+          meetingId: item.meetingId,
+          itemType: item.itemType,
+          title: item.title,
+          description: item.description,
+          assignee: item.assignee,
+          assigneeEmail: item.assigneeEmail,
+          dueDate: item.dueDate,
+          status: item.status,
+          priority: item.priority,
+          accountabilityType: accountability.accountabilityType,
+          accountableTeam: accountability.accountableTeam ?? null,
+          metadata:
+            item.metadata && typeof item.metadata === 'object'
+              ? (item.metadata as Record<string, unknown>)
+              : null,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        };
+      });
 
     return buildProjectContextSnapshot({
       openItems: projectItems,

@@ -139,6 +139,12 @@ export class MoMPipeline {
         ...reconciliation.contextualItems,
         ...momResponse.items,
       ]);
+      const finalReconciliation = reconcileMeetingItems({
+        currentItems: finalItems,
+        openItems: projectContext.openItems,
+        transcriptText,
+        referenceDate: meeting?.startTime ?? new Date(),
+      });
 
       // Step 3: Save to database
       this.updateProgress(meetingId, {
@@ -172,11 +178,12 @@ export class MoMPipeline {
       // Save action items
       await meetingItemsRepository.deleteByMomId(mom.id);
       await meetingItemsRepository.deleteGeneratedByMeeting(meetingId, 'analysis_pipeline');
+      await this.applyPriorItemUpdates(meetingId, finalReconciliation);
       const itemRecords = await this.saveActionItems(
         meetingId,
         mom.id,
         meeting?.projectId ?? null,
-        finalItems,
+        finalReconciliation.contextualItems,
         'mom_pipeline'
       );
 
@@ -222,9 +229,12 @@ export class MoMPipeline {
     momId: string,
     highlights: Highlight[]
   ): Promise<{ id: string }[]> {
-    if (highlights.length === 0) return [];
+    const meaningfulHighlights = highlights.filter(
+      (highlight) => highlight.content.trim().length > 0
+    );
+    if (meaningfulHighlights.length === 0) return [];
 
-    const records = highlights.map((h) => ({
+    const records = meaningfulHighlights.map((h) => ({
       meetingId,
       momId,
       highlightType: h.highlightType,
@@ -266,6 +276,14 @@ export class MoMPipeline {
         generatedBy,
         sourceQuote: item.sourceQuote,
         context: item.context,
+        accountability: {
+          ownerLabel: item.assignee ?? null,
+          accountabilityType: item.accountabilityType ?? 'unknown',
+          accountableTeam:
+            item.accountabilityType === 'team'
+              ? (item.accountableTeam ?? item.assignee ?? null)
+              : (item.accountableTeam ?? null),
+        },
         ...(item.metadata ?? {}),
       },
     }));
@@ -318,6 +336,7 @@ export class MoMPipeline {
       recentMeetingSummaries: projectContext.recentMeetingSummaries,
       openItemsSummary: projectContext.openItemsSummary,
       accountabilityAlerts: projectContext.accountabilityAlerts.map((item) => item.title),
+      accountabilityOwners: projectContext.accountabilityOwners,
       resolvedItemsSummary: reconciliation?.resolvedItemsSummary,
       readinessSignals: reconciliation?.readinessSignals ?? projectContext.readinessSignals,
       projectPriority: reconciliation?.projectPriority ?? projectContext.projectPriority,

@@ -10,6 +10,8 @@ export interface ContextualActionItem extends ActionItem {
   metadata?: Record<string, unknown> | undefined;
 }
 
+export type AccountabilityOwnerType = 'individual' | 'team' | 'unknown';
+
 export interface ProjectContextItem {
   id: string;
   meetingId: string;
@@ -21,6 +23,9 @@ export interface ProjectContextItem {
   dueDate?: string | null;
   status?: string | null;
   priority?: ActionItem['priority'] | null;
+  accountabilityType?: AccountabilityOwnerType | null;
+  accountableTeam?: string | null;
+  metadata?: Record<string, unknown> | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 }
@@ -38,9 +43,19 @@ export interface ProjectContextSnapshot {
   recentMeetingSummaries: string[];
   openItemsSummary: string[];
   accountabilityAlerts: ContextualActionItem[];
+  accountabilityOwners: AccountabilityOwnerSummary[];
   readinessSignals: string[];
   projectPriority: ActionItem['priority'];
   contextSummary: string;
+}
+
+export interface AccountabilityOwnerSummary {
+  ownerLabel: string;
+  ownerType: AccountabilityOwnerType;
+  openItems: string[];
+  overdueItems: string[];
+  missingStatusItems: string[];
+  activeRisks: string[];
 }
 
 export interface ProjectItemStatusUpdate {
@@ -57,6 +72,21 @@ export interface ReconciledMeetingState {
   resolvedItemsSummary: string[];
   readinessSignals: string[];
   projectPriority: ActionItem['priority'];
+}
+
+type MeetingItemMetadata = Record<string, unknown> | null | undefined;
+
+function statusStrength(status: ProjectItemStatusUpdate['newStatus']): number {
+  switch (status) {
+    case 'completed':
+      return 3;
+    case 'blocked':
+      return 2;
+    case 'in_progress':
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 const STOP_WORDS = new Set([
@@ -108,7 +138,7 @@ const STOP_WORDS = new Set([
   'with',
 ]);
 
-const COMPLETION_CUES = [
+const STRONG_COMPLETION_CUES = [
   'done',
   'completed',
   'complete',
@@ -133,17 +163,74 @@ const BLOCKED_CUES = [
   'at risk',
   'not realistic',
   'not stable',
-  'still open',
-  'unresolved',
   'waiting',
   'slipped',
   'slip',
-  'pending',
   'cannot',
   'can not',
+  'delay',
+  'delayed',
+  'partially blocked',
+  'blocker',
+];
+
+const OPEN_PROGRESS_CUES = [
+  'still open',
+  'unresolved',
+  'pending',
   'not done',
   'not finished',
+  'not complete',
+  'not completed',
+  'not closed',
   'not fully closed',
+  'not closed yet',
+  'not done yet',
+  'still need',
+  'still needs',
+  'still not',
+  'do not have the final answer',
+  'don t have the final answer',
+  'needs a final answer',
+  'remains unresolved',
+  'remains open',
+];
+
+const DECISION_CUES = [
+  'decided',
+  'decision made',
+  'approved',
+  'we are shipping',
+  'will ship',
+  'included in beta',
+  'effectively answered',
+  'answered',
+  'go ahead with',
+  'moving forward with',
+  'ship it in beta',
+  'shipping it in beta',
+  'phase one is',
+  'going public',
+  'sign off',
+  'signoff',
+];
+
+const TEAM_OWNER_HINTS = [
+  'team',
+  'support',
+  'engineering',
+  'eng',
+  'design',
+  'finance',
+  'identity',
+  'security',
+  'compliance',
+  'qa',
+  'customer success',
+  'marketing',
+  'sales',
+  'ops',
+  'leadership',
 ];
 
 function normalizeText(value: string): string {
@@ -152,6 +239,85 @@ function normalizeText(value: string): string {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function sanitizeOwnerLabel(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const normalized = trimmed.toLowerCase();
+  if (
+    ['unknown', 'n/a', 'none', 'unassigned', 'not specified', 'owner not recorded'].includes(
+      normalized
+    )
+  ) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
+export function normalizeAccountabilityType(value: unknown): AccountabilityOwnerType | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'individual' || normalized === 'team' || normalized === 'unknown') {
+    return normalized;
+  }
+
+  return undefined;
+}
+
+export function inferAccountabilityType(
+  ownerLabel?: string | null,
+  explicitType?: unknown
+): AccountabilityOwnerType {
+  const normalizedExplicit = normalizeAccountabilityType(explicitType);
+  if (normalizedExplicit) return normalizedExplicit;
+  if (!ownerLabel) return 'unknown';
+
+  const normalizedOwner = normalizeText(ownerLabel);
+  if (TEAM_OWNER_HINTS.some((hint) => normalizedOwner.includes(normalizeText(hint)))) {
+    return 'team';
+  }
+
+  return 'individual';
+}
+
+export function readAccountabilityDetails(args: { assignee?: string | null; metadata?: unknown }): {
+  ownerLabel?: string;
+  accountabilityType: AccountabilityOwnerType;
+  accountableTeam?: string;
+} {
+  const metadata =
+    args.metadata && typeof args.metadata === 'object'
+      ? (args.metadata as Record<string, unknown>)
+      : undefined;
+  const accountability =
+    metadata?.accountability && typeof metadata.accountability === 'object'
+      ? (metadata.accountability as Record<string, unknown>)
+      : undefined;
+
+  const ownerLabel = sanitizeOwnerLabel(
+    (typeof accountability?.ownerLabel === 'string' && accountability.ownerLabel) ||
+      args.assignee ||
+      (typeof accountability?.accountableTeam === 'string'
+        ? accountability.accountableTeam
+        : undefined)
+  );
+  const accountableTeam = sanitizeOwnerLabel(
+    typeof accountability?.accountableTeam === 'string' ? accountability.accountableTeam : undefined
+  );
+  const accountabilityType = inferAccountabilityType(
+    ownerLabel,
+    accountability?.accountabilityType
+  );
+
+  return {
+    ...(ownerLabel ? { ownerLabel } : {}),
+    accountabilityType,
+    ...(accountableTeam ? { accountableTeam } : {}),
+  };
 }
 
 function extractKeywords(value: string): string[] {
@@ -257,12 +423,8 @@ function hasCue(text: string, cues: string[]): boolean {
   return cues.some((cue) => normalized.includes(normalizeText(cue)));
 }
 
-function inferStatusFromEvidence(
-  item: ProjectContextItem,
-  evidenceLines: string[],
-  relatedItems: ContextualActionItem[]
-): ProjectItemStatusUpdate['newStatus'] | null {
-  const evidenceText = [...evidenceLines, ...relatedItems.map((entry) => entry.title)]
+function buildEvidenceText(evidenceLines: string[], relatedItems: ContextualActionItem[]): string {
+  return [...evidenceLines, ...relatedItems.map((entry) => entry.title)]
     .concat(
       relatedItems
         .map((entry) =>
@@ -271,33 +433,143 @@ function inferStatusFromEvidence(
         .filter(Boolean)
     )
     .join('\n');
+}
+
+function buildEvidenceSegments(
+  evidenceLines: string[],
+  relatedItems: ContextualActionItem[]
+): string[] {
+  return [
+    ...evidenceLines,
+    ...relatedItems.flatMap((entry) =>
+      [entry.title, entry.description, entry.context, entry.sourceQuote]
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .map((value) => value.trim())
+    ),
+  ];
+}
+
+function keepsWorkOpen(itemType: ActionItem['itemType']): boolean {
+  return [
+    'action_item',
+    'commitment',
+    'deadline',
+    'dependency',
+    'question',
+    'risk',
+    'blocker',
+  ].includes(itemType);
+}
+
+function hasDirectStatusSignal(
+  item: ProjectContextItem,
+  evidenceLines: string[],
+  relatedItems: ContextualActionItem[] = []
+): boolean {
+  const evidenceText = buildEvidenceText(evidenceLines, relatedItems);
+
+  if (!evidenceText) return false;
+  if (hasCue(evidenceText, BLOCKED_CUES) || hasCue(evidenceText, OPEN_PROGRESS_CUES)) {
+    return true;
+  }
+
+  if (item.itemType === 'question' && hasCue(evidenceText, DECISION_CUES)) {
+    return true;
+  }
+
+  return hasCue(evidenceText, STRONG_COMPLETION_CUES);
+}
+
+function inferStatusFromEvidence(
+  item: ProjectContextItem,
+  evidenceLines: string[],
+  relatedItems: ContextualActionItem[]
+): ProjectItemStatusUpdate['newStatus'] | null {
+  const evidenceText = buildEvidenceText(evidenceLines, relatedItems);
+  const evidenceSegments = buildEvidenceSegments(evidenceLines, relatedItems);
 
   if (!evidenceText) return null;
 
   const hasBlockedCue = hasCue(evidenceText, BLOCKED_CUES);
-  const hasCompletionCue = hasCue(evidenceText, COMPLETION_CUES);
+  const hasOpenProgressCue = hasCue(evidenceText, OPEN_PROGRESS_CUES);
+  const hasStrongCompletionCue =
+    hasCue(evidenceText, STRONG_COMPLETION_CUES) && !hasOpenProgressCue && !hasBlockedCue;
+  const hasDecisionCue = hasCue(evidenceText, DECISION_CUES);
+  const relatedTypes = new Set(relatedItems.map((entry) => entry.itemType));
 
-  if (hasBlockedCue && !hasCompletionCue) {
+  if (hasBlockedCue) {
     return 'blocked';
   }
 
-  if (hasCompletionCue) {
-    return 'completed';
-  }
+  if (item.itemType === 'question') {
+    const hasExplicitQuestionResolution = evidenceSegments.some((segment) => {
+      return hasCue(segment, DECISION_CUES) && !hasCue(segment, OPEN_PROGRESS_CUES);
+    });
 
-  if (evidenceLines.length > 0 || relatedItems.length > 0) {
     if (
-      item.itemType === 'question' &&
-      relatedItems.some((relatedItem) =>
-        ['decision', 'project_update', 'action_item'].includes(relatedItem.itemType)
-      )
+      hasExplicitQuestionResolution ||
+      (!hasOpenProgressCue &&
+        (hasDecisionCue ||
+          ['decision', 'project_update', 'announcement', 'key_takeaway'].some((type) =>
+            relatedTypes.has(type as ActionItem['itemType'])
+          )))
     ) {
       return 'completed';
     }
+
+    if (hasOpenProgressCue) {
+      return 'in_progress';
+    }
+  }
+
+  if (
+    hasStrongCompletionCue &&
+    !relatedItems.some((relatedItem) => keepsWorkOpen(relatedItem.itemType))
+  ) {
+    return 'completed';
+  }
+
+  if (hasOpenProgressCue) {
+    return 'in_progress';
+  }
+
+  if (evidenceLines.length > 0 || relatedItems.length > 0) {
     return 'in_progress';
   }
 
   return null;
+}
+
+function inferRelationType(args: {
+  priorItem: ProjectContextItem;
+  currentItem: ContextualActionItem;
+  inferredStatus: ProjectItemStatusUpdate['newStatus'] | null;
+  evidenceLines: string[];
+}): string {
+  const { priorItem, currentItem, inferredStatus, evidenceLines } = args;
+  const evidenceText = buildEvidenceText(evidenceLines, [currentItem]);
+  const explicitlyResolvesPriorItem =
+    hasCue(evidenceText, STRONG_COMPLETION_CUES) ||
+    hasCue(evidenceText, DECISION_CUES) ||
+    ['decision', 'project_update', 'announcement', 'key_takeaway'].includes(currentItem.itemType);
+
+  if (inferredStatus === 'blocked') {
+    return 'blocks_prior_item';
+  }
+
+  if (inferredStatus === 'completed') {
+    return explicitlyResolvesPriorItem ? 'resolves_prior_item' : 'references_prior_item';
+  }
+
+  if (
+    currentItem.itemType === priorItem.itemType ||
+    keepsWorkOpen(currentItem.itemType) ||
+    keepsWorkOpen(priorItem.itemType)
+  ) {
+    return 'carries_forward_prior_item';
+  }
+
+  return 'references_prior_item';
 }
 
 function scoreItemRelation(
@@ -375,12 +647,15 @@ function mergeContextualItem(
   existing: ContextualActionItem,
   incoming: ContextualActionItem
 ): ContextualActionItem {
+  const normalizedIncomingAssignee = sanitizeOwnerLabel(incoming.assignee);
+  const normalizedExistingAssignee = sanitizeOwnerLabel(existing.assignee);
+
   return {
     ...existing,
     ...incoming,
     title: existing.title || incoming.title,
     description: incoming.description ?? existing.description,
-    assignee: incoming.assignee ?? existing.assignee,
+    assignee: normalizedIncomingAssignee ?? normalizedExistingAssignee,
     assigneeEmail: incoming.assigneeEmail ?? existing.assigneeEmail,
     dueDate: incoming.dueDate ?? existing.dueDate,
     priority: maxPriority(existing.priority, incoming.priority),
@@ -393,6 +668,42 @@ function mergeContextualItem(
     sourceTranscriptRange: incoming.sourceTranscriptRange ?? existing.sourceTranscriptRange,
     metadata: mergeItemMetadata(existing.metadata, incoming.metadata),
   };
+}
+
+function readRelatedItemIds(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== 'object') return [];
+  const value = metadata as Record<string, unknown>;
+
+  return uniqueStrings(
+    [value.relatedPriorItemId, value.sourceItemId]
+      .map((entry) => (typeof entry === 'string' ? entry : ''))
+      .filter(Boolean)
+  );
+}
+
+function shouldCascadeCompletion(
+  item: ProjectContextItem,
+  resolvedSourceItem: ProjectContextItem | undefined
+): boolean {
+  if (!resolvedSourceItem) return false;
+
+  const metadata =
+    item.metadata && typeof item.metadata === 'object'
+      ? (item.metadata as Record<string, unknown>)
+      : undefined;
+
+  if (
+    typeof metadata?.generatedBy === 'string' &&
+    metadata.generatedBy === 'product_manager_context'
+  ) {
+    return true;
+  }
+
+  if (item.itemType === resolvedSourceItem.itemType) {
+    return true;
+  }
+
+  return item.itemType === 'question' && resolvedSourceItem.itemType === 'question';
 }
 
 export function isItemReferencedInTranscript(
@@ -447,10 +758,23 @@ export function dedupeContextualItems(items: ContextualActionItem[]): Contextual
   return Array.from(deduped.values());
 }
 
+export function isSyntheticAccountabilityItem(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+
+  const value = metadata as MeetingItemMetadata;
+  return (
+    (typeof value?.generatedBy === 'string' && value.generatedBy === 'product_manager_context') ||
+    typeof value?.alertType === 'string'
+  );
+}
+
 function summarizeProjectItem(item: ProjectContextItem): string {
   const parts = [titleCaseItemType(item.itemType), item.title];
 
-  if (item.assignee) parts.push(`owner: ${item.assignee}`);
+  if (item.assignee) {
+    const ownerType = item.accountabilityType ?? inferAccountabilityType(item.assignee);
+    parts.push(`owner (${ownerType}): ${item.assignee}`);
+  }
   if (item.status) parts.push(`status: ${item.status}`);
   if (item.dueDate) parts.push(`due: ${item.dueDate}`);
 
@@ -586,6 +910,99 @@ export function buildProjectContextSnapshot(args: {
   }
 
   const dedupedAlerts = dedupeContextualItems(accountabilityAlerts);
+  const accountabilityOwnersMap = new Map<string, AccountabilityOwnerSummary>();
+
+  const ensureOwnerSummary = (
+    ownerLabel: string,
+    ownerType: AccountabilityOwnerType
+  ): AccountabilityOwnerSummary => {
+    const key = `${ownerType}:${normalizeText(ownerLabel)}`;
+    const existing = accountabilityOwnersMap.get(key);
+    if (existing) return existing;
+
+    const created: AccountabilityOwnerSummary = {
+      ownerLabel,
+      ownerType,
+      openItems: [],
+      overdueItems: [],
+      missingStatusItems: [],
+      activeRisks: [],
+    };
+    accountabilityOwnersMap.set(key, created);
+    return created;
+  };
+
+  for (const item of openItems) {
+    const ownerLabel = item.assignee ?? item.accountableTeam ?? null;
+    if (!ownerLabel) continue;
+
+    const ownerType = item.accountabilityType ?? inferAccountabilityType(ownerLabel);
+    const ownerSummary = ensureOwnerSummary(ownerLabel, ownerType);
+    ownerSummary.openItems.push(`${titleCaseItemType(item.itemType)}: ${item.title}`);
+
+    if (
+      ['risk', 'blocker', 'dependency'].includes(item.itemType) ||
+      priorityWeight(item.priority) >= priorityWeight('high')
+    ) {
+      ownerSummary.activeRisks.push(item.title);
+    }
+  }
+
+  for (const alert of dedupedAlerts) {
+    const ownerLabel = alert.assignee ?? undefined;
+    if (!ownerLabel) continue;
+
+    const ownerType = inferAccountabilityType(
+      ownerLabel,
+      alert.accountabilityType ??
+        (alert.metadata &&
+        typeof alert.metadata === 'object' &&
+        alert.metadata.accountability &&
+        typeof alert.metadata.accountability === 'object'
+          ? (alert.metadata.accountability as Record<string, unknown>).accountabilityType
+          : undefined)
+    );
+    const ownerSummary = ensureOwnerSummary(ownerLabel, ownerType);
+    const alertType =
+      alert.metadata &&
+      typeof alert.metadata === 'object' &&
+      typeof alert.metadata.alertType === 'string'
+        ? alert.metadata.alertType
+        : undefined;
+
+    if (alertType === 'overdue_without_status') {
+      ownerSummary.overdueItems.push(alert.title);
+      ownerSummary.missingStatusItems.push(alert.title);
+    } else if (alertType === 'deadline_needs_status' || alertType === 'stale_item_without_status') {
+      ownerSummary.missingStatusItems.push(alert.title);
+    } else {
+      ownerSummary.activeRisks.push(alert.title);
+    }
+  }
+
+  const accountabilityOwners = Array.from(accountabilityOwnersMap.values())
+    .map((entry) => ({
+      ...entry,
+      openItems: uniqueStrings(entry.openItems).slice(0, 6),
+      overdueItems: uniqueStrings(entry.overdueItems).slice(0, 4),
+      missingStatusItems: uniqueStrings(entry.missingStatusItems).slice(0, 4),
+      activeRisks: uniqueStrings(entry.activeRisks).slice(0, 4),
+    }))
+    .sort((left, right) => {
+      const leftScore =
+        left.overdueItems.length * 4 +
+        left.missingStatusItems.length * 3 +
+        left.activeRisks.length * 2 +
+        left.openItems.length;
+      const rightScore =
+        right.overdueItems.length * 4 +
+        right.missingStatusItems.length * 3 +
+        right.activeRisks.length * 2 +
+        right.openItems.length;
+      return rightScore - leftScore;
+    })
+    .slice(0, 10);
+
   const readinessSignals = uniqueStrings(
     [
       ...openItems
@@ -626,6 +1043,23 @@ export function buildProjectContextSnapshot(args: {
           .map((item) => `${item.title}${item.dueDate ? ` (due ${item.dueDate})` : ''}`)
           .join('\n- ')}`
       : 'Accountability alerts:\n- No deterministic alerts triggered.',
+    accountabilityOwners.length > 0
+      ? `Individual and team accountability:\n- ${accountabilityOwners
+          .map((owner) => {
+            const details = [
+              owner.openItems.length > 0 ? `open: ${owner.openItems.join('; ')}` : '',
+              owner.overdueItems.length > 0 ? `overdue: ${owner.overdueItems.join('; ')}` : '',
+              owner.missingStatusItems.length > 0
+                ? `missing status: ${owner.missingStatusItems.join('; ')}`
+                : '',
+              owner.activeRisks.length > 0 ? `risks: ${owner.activeRisks.join('; ')}` : '',
+            ]
+              .filter(Boolean)
+              .join(' | ');
+            return `${owner.ownerLabel} [${owner.ownerType}]${details ? ` -> ${details}` : ''}`;
+          })
+          .join('\n- ')}`
+      : 'Individual and team accountability:\n- No owner-level accountability summary available.',
     readinessSignals.length > 0
       ? `Readiness signals:\n- ${readinessSignals.join('\n- ')}`
       : 'Readiness signals:\n- No active readiness blockers detected from deterministic checks.',
@@ -636,6 +1070,7 @@ export function buildProjectContextSnapshot(args: {
     recentMeetingSummaries,
     openItemsSummary,
     accountabilityAlerts: dedupedAlerts,
+    accountabilityOwners,
     readinessSignals,
     projectPriority,
     contextSummary: contextSummaryLines.join('\n\n'),
@@ -652,22 +1087,34 @@ export function reconcileMeetingItems(args: {
 
   const priorItemUpdates = new Map<string, ProjectItemStatusUpdate>();
   const resolvedItemIds = new Set<string>();
+  const matchedPriorItemIds = new Set<string>();
+  const openItemsById = new Map(openItems.map((item) => [item.id, item] as const));
   const contextualItems = currentItems
     .map((item) => {
+      const sourceItemId =
+        typeof item.metadata?.sourceItemId === 'string' ? item.metadata.sourceItemId : null;
+      const alertType =
+        typeof item.metadata?.alertType === 'string' ? item.metadata.alertType : null;
+
+      if (sourceItemId && resolvedItemIds.has(sourceItemId) && alertType) {
+        return null;
+      }
+
       const matchedPriorItem = findBestMatchingPriorItem(item, openItems);
       if (!matchedPriorItem) return item;
+      matchedPriorItemIds.add(matchedPriorItem.id);
 
       const evidenceLines = findRelevantTranscriptLines(matchedPriorItem, transcriptText);
       const inferredStatus = inferStatusFromEvidence(matchedPriorItem, evidenceLines, [item]);
-      const relationType =
-        inferredStatus === 'completed'
-          ? 'resolves_prior_item'
-          : inferredStatus === 'blocked'
-            ? 'blocks_prior_item'
-            : 'updates_prior_item';
+      const relationType = inferRelationType({
+        priorItem: matchedPriorItem,
+        currentItem: item,
+        inferredStatus,
+        evidenceLines,
+      });
 
       if (inferredStatus) {
-        priorItemUpdates.set(matchedPriorItem.id, {
+        const nextUpdate = {
           itemId: matchedPriorItem.id,
           sourceMeetingId: matchedPriorItem.meetingId,
           newStatus: inferredStatus,
@@ -678,7 +1125,15 @@ export function reconcileMeetingItems(args: {
               ' '
             )}.`,
           evidence: evidenceLines,
-        });
+        };
+        const existingUpdate = priorItemUpdates.get(matchedPriorItem.id);
+
+        if (
+          !existingUpdate ||
+          statusStrength(nextUpdate.newStatus) >= statusStrength(existingUpdate.newStatus)
+        ) {
+          priorItemUpdates.set(matchedPriorItem.id, nextUpdate);
+        }
 
         if (inferredStatus === 'completed') {
           resolvedItemIds.add(matchedPriorItem.id);
@@ -698,18 +1153,86 @@ export function reconcileMeetingItems(args: {
         },
       });
     })
-    .filter((item) => {
-      const sourceItemId =
-        typeof item.metadata?.sourceItemId === 'string' ? item.metadata.sourceItemId : null;
-      const alertType =
-        typeof item.metadata?.alertType === 'string' ? item.metadata.alertType : null;
+    .filter((item): item is ContextualActionItem => item !== null);
 
-      if (sourceItemId && resolvedItemIds.has(sourceItemId) && alertType) {
-        return false;
+  for (const priorItem of openItems) {
+    if (matchedPriorItemIds.has(priorItem.id) || resolvedItemIds.has(priorItem.id)) {
+      continue;
+    }
+
+    const evidenceLines = findRelevantTranscriptLines(priorItem, transcriptText);
+    if (!hasDirectStatusSignal(priorItem, evidenceLines)) {
+      continue;
+    }
+
+    const inferredStatus = inferStatusFromEvidence(priorItem, evidenceLines, []);
+    if (!inferredStatus) {
+      continue;
+    }
+
+    const nextUpdate = {
+      itemId: priorItem.id,
+      sourceMeetingId: priorItem.meetingId,
+      newStatus: inferredStatus,
+      updateDescription:
+        evidenceLines[0] ??
+        `${titleCaseItemType(priorItem.itemType)} revisited directly in this meeting transcript.`,
+      evidence: evidenceLines,
+    };
+    const existingUpdate = priorItemUpdates.get(priorItem.id);
+
+    if (
+      !existingUpdate ||
+      statusStrength(nextUpdate.newStatus) >= statusStrength(existingUpdate.newStatus)
+    ) {
+      priorItemUpdates.set(priorItem.id, nextUpdate);
+    }
+
+    if (inferredStatus === 'completed') {
+      resolvedItemIds.add(priorItem.id);
+    }
+  }
+
+  let cascadedResolution = true;
+  while (cascadedResolution) {
+    cascadedResolution = false;
+
+    for (const openItem of openItems) {
+      if (resolvedItemIds.has(openItem.id)) continue;
+
+      const relatedResolvedSource = readRelatedItemIds(openItem.metadata).find((relatedId) =>
+        resolvedItemIds.has(relatedId)
+      );
+      if (!relatedResolvedSource) continue;
+
+      const resolvedSourceItem = openItemsById.get(relatedResolvedSource);
+      if (!shouldCascadeCompletion(openItem, resolvedSourceItem)) continue;
+
+      const nextUpdate = {
+        itemId: openItem.id,
+        sourceMeetingId: openItem.meetingId,
+        newStatus: 'completed' as const,
+        updateDescription: resolvedSourceItem
+          ? `${titleCaseItemType(openItem.itemType)} closed because related prior ${resolvedSourceItem.itemType.replace(
+              /_/g,
+              ' '
+            )} was resolved in this meeting.`
+          : `${titleCaseItemType(openItem.itemType)} closed because its related prior item was resolved in this meeting.`,
+        evidence: [],
+      };
+      const existingUpdate = priorItemUpdates.get(openItem.id);
+
+      if (
+        !existingUpdate ||
+        statusStrength(nextUpdate.newStatus) >= statusStrength(existingUpdate.newStatus)
+      ) {
+        priorItemUpdates.set(openItem.id, nextUpdate);
       }
 
-      return true;
-    });
+      resolvedItemIds.add(openItem.id);
+      cascadedResolution = true;
+    }
+  }
 
   const unresolvedHighPriorityItems = openItems.filter((item) => {
     if (resolvedItemIds.has(item.id)) return false;

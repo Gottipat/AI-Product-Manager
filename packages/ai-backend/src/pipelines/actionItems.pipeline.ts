@@ -142,6 +142,7 @@ export class ActionItemsPipeline {
       recentMeetingSummaries: projectContext.recentMeetingSummaries,
       openItemsSummary: projectContext.openItemsSummary,
       accountabilityAlerts: projectContext.accountabilityAlerts.map((item) => item.title),
+      accountabilityOwners: projectContext.accountabilityOwners,
       resolvedItemsSummary: reconciliation?.resolvedItemsSummary,
       readinessSignals: reconciliation?.readinessSignals ?? projectContext.readinessSignals,
       projectPriority: reconciliation?.projectPriority ?? projectContext.projectPriority,
@@ -176,6 +177,14 @@ export class ActionItemsPipeline {
         generatedBy: 'action_items_pipeline',
         sourceQuote: item.sourceQuote,
         context: item.context,
+        accountability: {
+          ownerLabel: item.assignee ?? null,
+          accountabilityType: item.accountabilityType ?? 'unknown',
+          accountableTeam:
+            item.accountabilityType === 'team'
+              ? (item.accountableTeam ?? item.assignee ?? null)
+              : (item.accountableTeam ?? null),
+        },
         ...(item.metadata ?? {}),
       },
     }));

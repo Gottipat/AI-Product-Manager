@@ -243,5 +243,173 @@ describe('OpenAI Service', () => {
         expect(service.fitsInContext(belowLimit)).toBe(true);
       });
     });
+
+    describe('normalization', () => {
+      it('should drop blank highlights from normalized MoM responses', () => {
+        const normalized = (service as any).normalizeMoMResponse({
+          executiveSummary: 'Launch readiness reviewed.',
+          mainTopics: ['Launch'],
+          highlights: [
+            {
+              highlightType: 'key_point',
+              content: '',
+              importance: 9,
+              keywords: [],
+            },
+            {
+              highlightType: 'key_point',
+              content: 'Launch risk remains open',
+              importance: 8,
+              keywords: ['launch', 'risk'],
+            },
+          ],
+          items: [],
+        });
+
+        expect(normalized.highlights).toHaveLength(1);
+        expect(normalized.highlights[0]?.content).toBe('Launch risk remains open');
+      });
+
+      it('should normalize milestone item types into supported meeting item types', () => {
+        const normalized = (service as any).normalizeMoMResponse({
+          executiveSummary: 'Launch readiness reviewed.',
+          mainTopics: ['Launch'],
+          highlights: [],
+          items: [
+            {
+              itemType: 'milestone',
+              title: 'Beta readiness review',
+              dueDate: '2026-05-06',
+            },
+          ],
+        });
+
+        expect(normalized.items).toHaveLength(1);
+        expect(normalized.items[0]?.itemType).toBe('deadline');
+      });
+
+      it('should normalize team accountability on extracted items', () => {
+        const normalized = (service as any).normalizeMoMResponse({
+          executiveSummary: 'Launch readiness reviewed.',
+          mainTopics: ['Launch'],
+          highlights: [],
+          items: [
+            {
+              itemType: 'action_item',
+              title: 'Complete support macros',
+              team: 'Support',
+              accountabilityType: 'team',
+              priority: 'high',
+            },
+          ],
+        });
+
+        expect(normalized.items[0]?.assignee).toBe('Support');
+        expect(normalized.items[0]?.accountabilityType).toBe('team');
+        expect(normalized.items[0]?.accountableTeam).toBe('Support');
+      });
+
+      it('should infer team ownership from item text when owner is not explicit', () => {
+        const normalized = (service as any).normalizeMoMResponse({
+          executiveSummary: 'Launch readiness reviewed.',
+          mainTopics: ['Launch'],
+          highlights: [],
+          items: [
+            {
+              itemType: 'blocker',
+              title: 'Identity team did not deliver sandbox',
+              priority: 'critical',
+            },
+          ],
+        });
+
+        expect(normalized.items[0]?.assignee).toBe('Identity team');
+        expect(normalized.items[0]?.accountabilityType).toBe('team');
+        expect(normalized.items[0]?.accountableTeam).toBe('Identity team');
+      });
+
+      it('should keep named individuals as accountable owners even when a team is mentioned', () => {
+        const normalized = (service as any).normalizeMoMResponse({
+          executiveSummary: 'Launch readiness reviewed.',
+          mainTopics: ['Launch'],
+          highlights: [],
+          items: [
+            {
+              itemType: 'action_item',
+              title: 'Align with finance on pricing experiment guardrails',
+              assignee: 'Kumar',
+              priority: 'high',
+            },
+          ],
+        });
+
+        expect(normalized.items[0]?.assignee).toBe('Kumar');
+        expect(normalized.items[0]?.accountabilityType).toBe('individual');
+      });
+
+      it('should tolerate null optional fields on extracted items', () => {
+        const normalized = (service as any).normalizeMoMResponse({
+          executiveSummary: 'Launch readiness reviewed.',
+          mainTopics: ['Launch'],
+          highlights: [],
+          items: [
+            {
+              itemType: 'action_item',
+              title: 'Validate event mapping',
+              assignee: null,
+              accountableTeam: null,
+              assigneeEmail: null,
+              dueDate: null,
+              context: null,
+            },
+          ],
+        });
+
+        expect(normalized.items[0]?.title).toBe('Validate event mapping');
+        expect(normalized.items[0]?.assignee).toBeUndefined();
+        expect(normalized.items[0]?.accountableTeam).toBeUndefined();
+      });
+
+      it('should backfill thin MoM responses with deterministic PM context', () => {
+        const enriched = (service as any).ensureMoMQuality(
+          {
+            executiveSummary: 'Meeting analyzed successfully.',
+            detailedSummary: undefined,
+            mainTopics: [],
+            highlights: [],
+            items: [],
+            nextMeetingTopics: [],
+            overallConfidence: undefined,
+          },
+          {
+            projectName: 'Onboarding Growth Initiative',
+            title: 'Week 5 Launch Readiness',
+            resolvedItemsSummary: [
+              'Resolved carry-over action item: Dashboard validation completed',
+            ],
+            readinessSignals: ['Open blocker remains active: Duplicate account bug fix pending'],
+          },
+          [
+            {
+              itemType: 'action_item',
+              title: 'Send final launch comms note',
+              assignee: 'Kumar',
+              priority: 'high',
+            },
+            {
+              itemType: 'blocker',
+              title: 'Duplicate account bug fix pending',
+              priority: 'critical',
+            },
+          ]
+        );
+
+        expect(enriched.executiveSummary).toContain('Onboarding Growth Initiative');
+        expect(enriched.executiveSummary).toContain('Duplicate account bug fix pending');
+        expect(enriched.detailedSummary).toContain('## Next steps');
+        expect(enriched.highlights.length).toBeGreaterThan(0);
+        expect(enriched.items.length).toBe(2);
+      });
+    });
   });
 });
