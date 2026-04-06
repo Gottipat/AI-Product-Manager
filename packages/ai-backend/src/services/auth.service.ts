@@ -11,6 +11,8 @@ import { DEFAULT_DEV_ORG_ID } from '../db/bootstrap.js';
 import { db } from '../db/index.js';
 import { users, type User, type NewUser } from '../db/schema/users.js';
 
+import { activatePendingCollaborationsForUser } from './collaboration.service.js';
+
 /** Strip passwordHash from a user record */
 function omitPassword(user: User): Omit<User, 'passwordHash'> {
   const {
@@ -126,6 +128,11 @@ export async function createUser(
 
   const token = generateToken(created);
 
+  await activatePendingCollaborationsForUser({
+    userId: created.id,
+    email: created.email,
+  });
+
   return { user: omitPassword(created), token };
 }
 
@@ -151,6 +158,11 @@ export async function signIn(email: string, password: string): Promise<AuthResul
 
   // Update last login
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+
+  await activatePendingCollaborationsForUser({
+    userId: user.id,
+    email: user.email,
+  });
 
   const token = generateToken(user);
 

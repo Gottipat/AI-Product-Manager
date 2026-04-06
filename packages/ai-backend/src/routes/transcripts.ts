@@ -10,6 +10,7 @@ import {
   transcriptRepository,
   type NewTranscriptEvent,
 } from '../db/repositories/transcript.repository.js';
+import { canEditMeeting, canViewMeeting } from '../services/collaboration.service.js';
 
 // Request types
 interface TranscriptEventBody {
@@ -34,6 +35,12 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
   fastify.post<{ Params: { id: string }; Body: TranscriptEventBody }>(
     '/api/v1/meetings/:id/transcripts',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting transcript' });
+      }
+
       const { speaker, content, sequenceNumber, speakerId, isFinal, confidence, capturedAt } =
         request.body;
 
@@ -68,6 +75,12 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
   fastify.post<{ Params: { id: string }; Body: BatchTranscriptBody }>(
     '/api/v1/meetings/:id/transcripts/batch',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting transcript' });
+      }
+
       const { events } = request.body;
 
       if (!events || !Array.isArray(events) || events.length === 0) {
@@ -101,10 +114,17 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
    * GET /api/v1/meetings/:id/transcripts
    * Get all transcripts for a meeting
    */
-  fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id/transcripts', async (request) => {
-    const events = await transcriptRepository.findByMeetingId(request.params.id);
-    return { events, count: events.length };
-  });
+  fastify.get<{ Params: { id: string } }>(
+    '/api/v1/meetings/:id/transcripts',
+    async (request, reply) => {
+      if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this meeting' });
+      }
+
+      const events = await transcriptRepository.findByMeetingId(request.params.id);
+      return { events, count: events.length };
+    }
+  );
 
   /**
    * GET /api/v1/meetings/:id/transcripts/text
@@ -112,7 +132,11 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
    */
   fastify.get<{ Params: { id: string } }>(
     '/api/v1/meetings/:id/transcripts/text',
-    async (request) => {
+    async (request, reply) => {
+      if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this meeting' });
+      }
+
       const text = await transcriptRepository.getTranscriptText(request.params.id);
       return { text };
     }
@@ -124,7 +148,11 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
    */
   fastify.get<{ Params: { id: string } }>(
     '/api/v1/meetings/:id/transcripts/by-speaker',
-    async (request) => {
+    async (request, reply) => {
+      if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this meeting' });
+      }
+
       const bySpeaker = await transcriptRepository.getTranscriptBySpeaker(request.params.id);
       return { bySpeaker };
     }
@@ -136,7 +164,11 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
    */
   fastify.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
     '/api/v1/meetings/:id/transcripts/latest',
-    async (request) => {
+    async (request, reply) => {
+      if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this meeting' });
+      }
+
       const limit = parseInt(request.query.limit || '50', 10);
       const events = await transcriptRepository.findLatest(request.params.id, limit);
       return { events };

@@ -9,10 +9,19 @@ import { z } from 'zod';
 
 import { DEFAULT_DEV_ORG_ID } from '../db/bootstrap.js';
 import { db } from '../db/index.js';
+import { projectCollaborators } from '../db/schema/collaboration.js';
 import { meetingItems } from '../db/schema/meetingItems.js';
 import { meetings } from '../db/schema/meetings.js';
 import { moms } from '../db/schema/mom.js';
 import { projects } from '../db/schema/organizations.js';
+import {
+  canEditProject,
+  canManageProjectCollaborators,
+  canViewProject,
+  getProjectAccess,
+  listAccessibleProjectsWithAccess,
+  listProjectCollaborators,
+} from '../services/collaboration.service.js';
 
 // Validation schemas
 const createProjectSchema = z.object({
@@ -36,7 +45,11 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
    */
   server.get('/api/v1/projects', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const allProjects = await db.select().from(projects).orderBy(desc(projects.updatedAt));
+      if (!_request.user) {
+        return reply.status(401).send({ error: 'Authentication required' });
+      }
+
+      const allProjects = await listAccessibleProjectsWithAccess(_request.user);
 
       // Get meeting/task counts
       const projectsWithCounts = await Promise.all(
@@ -83,13 +96,26 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
       const [project] = await db
         .insert(projects)
         .values({
-          organizationId: DEFAULT_DEV_ORG_ID,
+          organizationId: request.user?.organizationId || DEFAULT_DEV_ORG_ID,
+          createdBy: request.user?.userId || null,
           name: body.name,
           description: body.description ?? null,
           googleMeetLink: body.googleMeetLink ?? null,
           isRecurring: body.isRecurring ?? false,
         })
         .returning();
+
+      if (project && request.user) {
+        await db.insert(projectCollaborators).values({
+          projectId: project.id,
+          userId: request.user.userId,
+          email: request.user.email.toLowerCase(),
+          role: 'owner',
+          status: 'active',
+          invitedBy: request.user.userId,
+          acceptedAt: new Date(),
+        });
+      }
 
       return reply.status(201).send({ project });
     } catch (error) {
@@ -112,6 +138,10 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
 
       if (!project) {
         return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      if (!request.user || !(await canViewProject(id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this project' });
       }
 
       // Get meetings associated with this project (by projectId OR googleMeetLink)
@@ -143,11 +173,16 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
         }
       }
 
+      const collaborators = await listProjectCollaborators(id);
+      const accessRole = request.user ? await getProjectAccess(id, request.user) : null;
+
       return reply.send({
         project,
+        accessRole,
         meetings: projectMeetings,
         items: projectItems,
         moms: projectMoms,
+        collaborators,
         stats: {
           totalMeetings: projectMeetings.length,
           totalItems: projectItems.length,
@@ -173,6 +208,10 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
 
       if (!existing) {
         return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      if (!request.user || !(await canEditProject(id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have permission to edit this project' });
       }
 
       const [updated] = await db
@@ -205,6 +244,10 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: 'Project not found' });
       }
 
+      if (!request.user || !(await canEditProject(id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have permission to edit this project' });
+      }
+
       const [updated] = await db
         .update(projects)
         .set({ googleMeetLink, updatedAt: new Date() })
@@ -232,6 +275,10 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
 
       if (!existing) {
         return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      if (!request.user || !(await canManageProjectCollaborators(id, request.user))) {
+        return reply.status(403).send({ error: 'Only project owners can delete a project' });
       }
 
       await db.delete(projects).where(eq(projects.id, id));

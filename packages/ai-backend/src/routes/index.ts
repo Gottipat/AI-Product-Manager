@@ -10,6 +10,7 @@ import { aiRoutes } from './ai.js';
 import { authRoutes } from './auth.js';
 import { benchmarkRoutes } from './benchmark.js';
 import { botRoutes } from './bot.js';
+import { collaborationRoutes } from './collaboration.js';
 import { extensionRoutes } from './extension.js';
 import { meetingItemsRoutes } from './meetingItems.js';
 import { meetingRoutes } from './meetings.js';
@@ -27,6 +28,7 @@ export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   // Register all route modules
   await authRoutes(fastify);
   await projectRoutes(fastify);
+  await collaborationRoutes(fastify);
   await aiRoutes(fastify);
   await benchmarkRoutes(fastify);
   await meetingRoutes(fastify);

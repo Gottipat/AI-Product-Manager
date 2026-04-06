@@ -10,6 +10,7 @@ import {
   type NewMom,
   type NewHighlight,
 } from '../db/repositories/mom.repository.js';
+import { canEditMeeting, canViewMeeting } from '../services/collaboration.service.js';
 
 // Request types
 interface CreateMomBody {
@@ -40,6 +41,12 @@ export async function momRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { id: string }; Body: CreateMomBody }>(
     '/api/v1/meetings/:id/mom',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
+
       const {
         executiveSummary,
         detailedSummary,
@@ -69,6 +76,10 @@ export async function momRoutes(fastify: FastifyInstance): Promise<void> {
    * Get MoM for a meeting
    */
   fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id/mom', async (request, reply) => {
+    if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+      return reply.status(403).send({ error: 'You do not have access to this meeting' });
+    }
+
     const mom = await momRepository.findByMeetingId(request.params.id);
     if (!mom) {
       return reply.status(404).send({ error: 'MoM not found for this meeting' });
@@ -83,6 +94,12 @@ export async function momRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { id: string }; Body: AddHighlightBody }>(
     '/api/v1/meetings/:id/highlights',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
+
       const { highlightType, content, importance, keywords } = request.body;
 
       if (!highlightType || !content) {
@@ -109,6 +126,12 @@ export async function momRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { id: string }; Body: AddHighlightsBatchBody }>(
     '/api/v1/meetings/:id/highlights/batch',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
+
       const { highlights } = request.body;
 
       if (!highlights || !Array.isArray(highlights) || highlights.length === 0) {
@@ -137,7 +160,11 @@ export async function momRoutes(fastify: FastifyInstance): Promise<void> {
    */
   fastify.get<{ Params: { id: string }; Querystring: { type?: string } }>(
     '/api/v1/meetings/:id/highlights',
-    async (request) => {
+    async (request, reply) => {
+      if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this meeting' });
+      }
+
       const { type } = request.query;
 
       if (type) {

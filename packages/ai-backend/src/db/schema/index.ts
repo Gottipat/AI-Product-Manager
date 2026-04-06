@@ -26,3 +26,6 @@ export * from './embeddings';
 
 // Users
 export * from './users';
+
+// Collaboration
+export * from './collaboration';
