@@ -160,6 +160,26 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="max-w-[1200px]">
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <Link
+          href="/projects"
+          className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to projects
+        </Link>
+        {meetings.length > 0 && (
+          <Link
+            href="/meetings"
+            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-300 transition"
+          >
+            All meetings
+          </Link>
+        )}
+      </div>
+
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>

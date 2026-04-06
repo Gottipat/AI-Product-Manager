@@ -94,6 +94,7 @@ export class MeetingRepository {
       limit,
       with: {
         participants: true,
+        project: true,
       },
     });
   }

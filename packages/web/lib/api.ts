@@ -247,12 +247,17 @@ export interface CreateProjectInput {
 export interface Meeting {
   id: string;
   title: string;
+  projectId?: string | null;
   startTime?: string;
   endTime?: string;
   status: string;
   durationMinutes?: number;
   captureSource?: string;
   totalTranscriptEvents?: number;
+  project?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface TranscriptEvent {
