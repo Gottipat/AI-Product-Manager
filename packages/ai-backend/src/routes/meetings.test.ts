@@ -3,6 +3,7 @@
  * @description Test cases for meeting CRUD endpoints
  */
 
+import Fastify from 'fastify';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
 // Mock the repository
@@ -19,7 +20,14 @@ vi.mock('../db/repositories/meeting.repository.js', () => ({
   },
 }));
 
+vi.mock('fs/promises', () => ({
+  mkdir: vi.fn(),
+  writeFile: vi.fn(),
+}));
+
+import { mkdir, writeFile } from 'fs/promises';
 import { meetingRepository } from '../db/repositories/meeting.repository.js';
+import { meetingRoutes } from './meetings.js';
 
 describe('Meeting Routes', () => {
   beforeEach(() => {
@@ -173,6 +181,33 @@ describe('Meeting Routes', () => {
 
       expect(result).toHaveLength(2);
       expect(meetingRepository.findRecent).toHaveBeenCalledWith('org-123', 20);
+    });
+  });
+
+  describe('POST /api/v1/meetings/:id/audio', () => {
+    it('should store an uploaded audio recording', async () => {
+      (meetingRepository.findById as Mock).mockResolvedValue({
+        id: 'meeting-123',
+        title: 'Sprint Planning',
+      });
+
+      const app = Fastify();
+      await meetingRoutes(app);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/meetings/meeting-123/audio',
+        headers: {
+          'content-type': 'audio/webm',
+        },
+        payload: Buffer.from('fake-audio'),
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(writeFile).toHaveBeenCalledTimes(1);
+      expect(mkdir).toHaveBeenCalledTimes(1);
+
+      await app.close();
     });
   });
 });

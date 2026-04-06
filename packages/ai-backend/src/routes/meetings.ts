@@ -4,6 +4,7 @@
  */
 
 import { createReadStream, existsSync, statSync } from 'fs';
+import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 
 import { FastifyInstance } from 'fastify';
@@ -31,6 +32,22 @@ interface AddParticipantBody {
 }
 
 export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
+  if (!fastify.hasContentTypeParser(/^audio\/webm(?:;.*)?$/i)) {
+    fastify.addContentTypeParser(
+      /^audio\/webm(?:;.*)?$/i,
+      { parseAs: 'buffer' },
+      (_request, payload, done) => done(null, payload)
+    );
+  }
+
+  if (!fastify.hasContentTypeParser('application/octet-stream')) {
+    fastify.addContentTypeParser(
+      'application/octet-stream',
+      { parseAs: 'buffer' },
+      (_request, payload, done) => done(null, payload)
+    );
+  }
+
   /**
    * POST /api/v1/meetings
    * Create a new meeting
@@ -149,6 +166,40 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
     const participants = await meetingRepository.getParticipants(request.params.id);
     return { participants };
   });
+
+  /**
+   * POST /api/v1/meetings/:id/audio
+   * Store a recorded audio file for a meeting
+   */
+  fastify.post<{ Params: { id: string }; Body: Buffer }>(
+    '/api/v1/meetings/:id/audio',
+    async (request, reply) => {
+      const meetingId = request.params.id;
+      const meeting = await meetingRepository.findById(meetingId);
+
+      if (!meeting) {
+        return reply.status(404).send({ error: 'Meeting not found' });
+      }
+
+      const audioBuffer = request.body;
+      if (!audioBuffer || !Buffer.isBuffer(audioBuffer) || audioBuffer.length === 0) {
+        return reply.status(400).send({ error: 'Audio payload is required' });
+      }
+
+      const recordingsDir = join(process.cwd(), 'uploads', 'recordings');
+      const recordingPath = join(recordingsDir, `${meetingId}.webm`);
+
+      await mkdir(recordingsDir, { recursive: true });
+      await writeFile(recordingPath, audioBuffer);
+
+      return reply.status(201).send({
+        success: true,
+        meetingId,
+        bytes: audioBuffer.length,
+        path: recordingPath,
+      });
+    }
+  );
 
   /**
    * GET /api/v1/meetings/:id/audio

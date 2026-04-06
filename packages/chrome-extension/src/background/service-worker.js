@@ -23,10 +23,12 @@ let syncState = 'idle';
 let lastSyncError = null;
 let recentPreviewLines = [];
 let currentDraftPreview = null;
+let audioCaptureActive = false;
 
 const MAX_PREVIEW_LINES = 6;
 const RETRY_BASE_DELAY_MS = 2500;
 const RETRY_MAX_DELAY_MS = 15000;
+const OFFSCREEN_DOCUMENT_PATH = 'src/offscreen/audio-recorder.html';
 
 /* ───────────────────────────────────────────
    Helpers
@@ -65,6 +67,41 @@ async function ensureContentScriptReady(tabId) {
   return null;
 }
 
+async function ensureOffscreenDocument() {
+  if (!chrome.offscreen?.createDocument) {
+    throw new Error('Offscreen audio recording is not supported in this browser.');
+  }
+
+  const documentUrl = chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH);
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [documentUrl],
+  });
+
+  if (existingContexts.length > 0) {
+    return;
+  }
+
+  await chrome.offscreen.createDocument({
+    url: OFFSCREEN_DOCUMENT_PATH,
+    reasons: [chrome.offscreen.Reason.USER_MEDIA],
+    justification: 'Record Google Meet tab audio and upload it with the transcript.',
+  });
+}
+
+async function sendRuntimeMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+
+      resolve(response || null);
+    });
+  });
+}
+
 async function resetCaptureRuntimeState() {
   captureActive = false;
   currentMeetingId = null;
@@ -77,6 +114,7 @@ async function resetCaptureRuntimeState() {
   lastSyncError = null;
   recentPreviewLines = [];
   currentDraftPreview = null;
+  audioCaptureActive = false;
   clearRetryTimer();
 
   await persistRuntimeState();
@@ -293,6 +331,48 @@ async function triggerExtractItems(meetingId) {
   return apiRequest('POST', `/api/v1/meetings/${meetingId}/extract-items`, {});
 }
 
+async function startAudioCapture(tabId, meetingId) {
+  if (!tabId || !meetingId) {
+    throw new Error('Cannot start audio capture without a tab and meeting ID.');
+  }
+
+  await ensureOffscreenDocument();
+
+  const streamId = await chrome.tabCapture.getMediaStreamId({
+    targetTabId: tabId,
+  });
+
+  const response = await sendRuntimeMessage({
+    type: 'OFFSCREEN_START_AUDIO_RECORDING',
+    data: { streamId, meetingId },
+  });
+
+  if (!response?.success) {
+    throw new Error(response?.error || 'Failed to start tab audio recording.');
+  }
+
+  audioCaptureActive = true;
+}
+
+async function stopAudioCapture(meetingId) {
+  if (!audioCaptureActive) {
+    return { uploaded: false, skipped: true };
+  }
+
+  const response = await sendRuntimeMessage({
+    type: 'OFFSCREEN_STOP_AUDIO_RECORDING',
+    data: { meetingId },
+  });
+
+  audioCaptureActive = false;
+
+  if (!response?.success) {
+    throw new Error(response?.error || 'Failed to stop and upload tab audio recording.');
+  }
+
+  return response;
+}
+
 async function runPostCaptureProcessing(meetingId) {
   if (!meetingId) {
     return;
@@ -443,6 +523,7 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
     lastSyncError = null;
     recentPreviewLines = [];
     currentDraftPreview = null;
+    audioCaptureActive = false;
     clearRetryTimer();
 
     console.log(
@@ -450,6 +531,7 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
     );
 
     await startMeeting(currentMeetingId);
+    await startAudioCapture(tabId, currentMeetingId);
     await persistRuntimeState();
     await persistPreviewState();
 
@@ -497,6 +579,8 @@ async function handleStopCapture(tabId) {
       await updateSyncState('retrying', 'Some transcript batches are still queued.');
     }
 
+    const audioResult = currentMeetingId ? await stopAudioCapture(currentMeetingId) : null;
+
     if (currentMeetingId) {
       await completeMeeting(currentMeetingId);
       console.log(`[Meeting AI BG] Meeting completed: ${currentMeetingId}`);
@@ -506,6 +590,7 @@ async function handleStopCapture(tabId) {
     const completedMeetingId = currentMeetingId;
     currentMeetingId = null;
     currentProjectId = null;
+    audioCaptureActive = false;
     clearRetryTimer();
     recentPreviewLines = [];
     currentDraftPreview = null;
@@ -529,6 +614,7 @@ async function handleStopCapture(tabId) {
       meetingId: completedMeetingId,
       totalSentEvents,
       queueFlushed,
+      audioUploaded: Boolean(audioResult?.uploaded),
     };
   } catch (error) {
     console.error('[Meeting AI BG] Failed to stop capture:', error);
