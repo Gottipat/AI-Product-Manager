@@ -21,6 +21,12 @@ if (globalThis.__meetingAiContentObserverInstalled) {
 
   const SPEAKER_SELECTOR = SELECTORS.speakerNames.join(', ');
   const TEXT_SELECTOR = SELECTORS.captionTexts.join(', ');
+  const UI_NOISE_PATTERNS = [
+    /\barrow_downward\b/gi,
+    /\bJump to bottom\b/gi,
+    /\bkeyboard_arrow_down\b/gi,
+    /\bmore_vert\b/gi,
+  ];
 
   /* ───────────────────────────────────────────
    State
@@ -45,6 +51,27 @@ if (globalThis.__meetingAiContentObserverInstalled) {
   /* ───────────────────────────────────────────
    Helpers
    ─────────────────────────────────────────── */
+  function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function readVisibleText(node) {
+    if (!node) return '';
+
+    if (typeof node.innerText === 'string' && node.innerText.trim()) {
+      return node.innerText.trim();
+    }
+
+    return node.textContent?.trim() || '';
+  }
+
+  function containsUiNoise(text) {
+    return UI_NOISE_PATTERNS.some((pattern) => {
+      pattern.lastIndex = 0;
+      return pattern.test(text);
+    });
+  }
+
   function normalizeSpeakerName(name) {
     if (!name) return 'Unknown';
 
@@ -59,6 +86,28 @@ if (globalThis.__meetingAiContentObserverInstalled) {
       .trim();
 
     return normalized || 'Unknown';
+  }
+
+  function isLikelySpeakerName(name) {
+    const normalized = normalizeSpeakerName(name);
+
+    if (!normalized || normalized === 'Unknown') {
+      return false;
+    }
+
+    if (normalized.length < 3 || normalized.length > 60) {
+      return false;
+    }
+
+    if (/[?!,:;()[\]{}]/.test(normalized)) {
+      return false;
+    }
+
+    if (normalized.split(/\s+/).length > 5) {
+      return false;
+    }
+
+    return !containsUiNoise(normalized);
   }
 
   function buildSpeakerId(name) {
@@ -78,25 +127,112 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     return null;
   }
 
+  function sanitizeCaptionText(text, speaker = null) {
+    if (!text) return '';
+
+    let sanitized = text.replace(/\s+/g, ' ').trim();
+
+    for (const pattern of UI_NOISE_PATTERNS) {
+      pattern.lastIndex = 0;
+      sanitized = sanitized.replace(pattern, ' ');
+    }
+
+    sanitized = sanitized.replace(/\s+/g, ' ').trim();
+
+    if (!sanitized) {
+      return '';
+    }
+
+    if (speaker && speaker !== 'Unknown') {
+      const escapedSpeaker = escapeRegExp(speaker);
+      sanitized = sanitized
+        .replace(new RegExp(`^${escapedSpeaker}\\s*[:\\-–—]\\s*`, 'i'), '')
+        .replace(new RegExp(`^${escapedSpeaker}(?=[A-Z])`, 'i'), '')
+        .trim();
+    }
+
+    return sanitized.replace(/\s+/g, ' ').trim();
+  }
+
   function findCaptionRow(startNode, container) {
     let current = startNode instanceof Element ? startNode : startNode?.parentElement;
+    let fallback = null;
 
     while (current && current !== container) {
-      const hasSpeaker = current.querySelector(SPEAKER_SELECTOR);
-      const hasText = current.querySelector(TEXT_SELECTOR);
+      const hasSpeaker =
+        current.matches?.(SPEAKER_SELECTOR) || Boolean(current.querySelector(SPEAKER_SELECTOR));
+      const hasText =
+        current.matches?.(TEXT_SELECTOR) || Boolean(current.querySelector(TEXT_SELECTOR));
+      const visibleTextLength = readVisibleText(current).length;
+
+      if (!fallback && hasText) {
+        fallback = current;
+      }
+
       if (hasSpeaker && hasText) {
         return current;
+      }
+
+      if (hasText && visibleTextLength > 0 && visibleTextLength < 240) {
+        fallback = current;
+      }
+
+      current = current.parentElement;
+    }
+
+    return fallback;
+  }
+
+  function resolveSpeakerForTextElement(textElement, row, container) {
+    const candidateElements = [];
+
+    if (row) {
+      candidateElements.push(...row.querySelectorAll(SPEAKER_SELECTOR));
+    }
+
+    let current = textElement.parentElement;
+    while (current && current !== container) {
+      const withinCurrent = Array.from(current.querySelectorAll(SPEAKER_SELECTOR));
+      if (withinCurrent.length > 0) {
+        candidateElements.push(...withinCurrent);
       }
       current = current.parentElement;
     }
 
-    return null;
+    for (const element of candidateElements) {
+      const candidate = normalizeSpeakerName(readVisibleText(element));
+      if (isLikelySpeakerName(candidate)) {
+        return candidate;
+      }
+    }
+
+    const allSpeakerElements = Array.from(container.querySelectorAll(SPEAKER_SELECTOR));
+    let fallbackSpeaker = null;
+
+    for (const element of allSpeakerElements) {
+      const candidate = normalizeSpeakerName(readVisibleText(element));
+      if (!isLikelySpeakerName(candidate)) {
+        continue;
+      }
+
+      if (textElement === container) {
+        fallbackSpeaker = candidate;
+        continue;
+      }
+
+      const position = element.compareDocumentPosition(textElement);
+      if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+        fallbackSpeaker = candidate;
+      }
+    }
+
+    return fallbackSpeaker || 'Unknown';
   }
 
-  function extractCaptionFromRow(row) {
-    const speakerElement = row.querySelector(SPEAKER_SELECTOR);
-    const speaker = normalizeSpeakerName(speakerElement?.textContent?.trim() || 'Unknown');
-    const text = collectTextFromNode(row);
+  function extractCaptionFromTextElement(textElement, container) {
+    const row = findCaptionRow(textElement, container);
+    const speaker = resolveSpeakerForTextElement(textElement, row, container);
+    const text = sanitizeCaptionText(collectTextFromNode(row || textElement), speaker);
 
     if (!text) {
       return null;
@@ -111,22 +247,24 @@ if (globalThis.__meetingAiContentObserverInstalled) {
 
   function collectCaptionRows(container) {
     const rows = [];
-    const seenRows = new Set();
-    const speakerElements = Array.from(container.querySelectorAll(SPEAKER_SELECTOR)).filter(
-      (element) => element.textContent?.trim()
+    const seenSnapshots = new Set();
+    const textElements = Array.from(container.querySelectorAll(TEXT_SELECTOR)).filter((element) =>
+      readVisibleText(element)
     );
 
-    for (const speakerElement of speakerElements) {
-      const row = findCaptionRow(speakerElement, container);
-      if (!row || seenRows.has(row)) {
+    for (const textElement of textElements) {
+      const snapshot = extractCaptionFromTextElement(textElement, container);
+      if (!snapshot) {
         continue;
       }
 
-      seenRows.add(row);
-      const snapshot = extractCaptionFromRow(row);
-      if (snapshot) {
-        rows.push(snapshot);
+      const snapshotKey = `${snapshot.speaker}|${snapshot.text}`;
+      if (seenSnapshots.has(snapshotKey)) {
+        continue;
       }
+
+      seenSnapshots.add(snapshotKey);
+      rows.push(snapshot);
     }
 
     return rows;
@@ -137,12 +275,24 @@ if (globalThis.__meetingAiContentObserverInstalled) {
 
     const textElements = Array.from(node.querySelectorAll(TEXT_SELECTOR));
     if (textElements.length === 0) {
-      return node.textContent?.trim() || '';
+      return sanitizeCaptionText(readVisibleText(node));
     }
 
-    const parts = textElements.map((element) => element.textContent?.trim() || '').filter(Boolean);
+    const parts = textElements
+      .map((element) => sanitizeCaptionText(readVisibleText(element)))
+      .filter(Boolean);
 
-    return Array.from(new Set(parts)).join(' ').replace(/\s+/g, ' ').trim();
+    return parts
+      .filter(
+        (part, index, allParts) =>
+          !allParts.some(
+            (candidate, candidateIndex) =>
+              candidateIndex !== index && candidate.length > part.length && candidate.includes(part)
+          )
+      )
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   function extractLatestCaption(container) {
@@ -156,16 +306,47 @@ if (globalThis.__meetingAiContentObserverInstalled) {
       return null;
     }
 
-    const fallbackSpeakerElement = container.querySelector(SPEAKER_SELECTOR);
-    const fallbackSpeaker = normalizeSpeakerName(
-      fallbackSpeakerElement?.textContent?.trim() || 'Unknown'
-    );
+    const fallbackSpeaker = resolveSpeakerForTextElement(container, null, container);
 
     return {
       speaker: fallbackSpeaker,
       speakerId: buildSpeakerId(fallbackSpeaker),
-      text: fallbackText,
+      text: sanitizeCaptionText(fallbackText, fallbackSpeaker),
     };
+  }
+
+  function speakersLikelyMatch(left, right) {
+    const normalizedLeft = normalizeSpeakerName(left);
+    const normalizedRight = normalizeSpeakerName(right);
+
+    if (normalizedLeft === normalizedRight) {
+      return true;
+    }
+
+    if (
+      normalizedLeft !== 'Unknown' &&
+      normalizedRight !== 'Unknown' &&
+      (normalizedLeft.startsWith(normalizedRight) || normalizedRight.startsWith(normalizedLeft))
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function pickPreferredSpeaker(currentSpeaker, nextSpeaker) {
+    const normalizedCurrent = normalizeSpeakerName(currentSpeaker);
+    const normalizedNext = normalizeSpeakerName(nextSpeaker);
+
+    if (normalizedCurrent === 'Unknown') {
+      return normalizedNext;
+    }
+
+    if (normalizedNext === 'Unknown') {
+      return normalizedCurrent;
+    }
+
+    return normalizedNext.length >= normalizedCurrent.length ? normalizedNext : normalizedCurrent;
   }
 
   function notifyStats() {
@@ -285,7 +466,7 @@ if (globalThis.__meetingAiContentObserverInstalled) {
       return;
     }
 
-    if (snapshot.speaker === currentDraft.speaker) {
+    if (speakersLikelyMatch(snapshot.speaker, currentDraft.speaker)) {
       if (snapshot.text === currentDraft.text) {
         resetDraftTimer();
         return;
@@ -294,6 +475,8 @@ if (globalThis.__meetingAiContentObserverInstalled) {
       if (snapshot.text.startsWith(currentDraft.text)) {
         currentDraft = {
           ...currentDraft,
+          speaker: pickPreferredSpeaker(currentDraft.speaker, snapshot.speaker),
+          speakerId: buildSpeakerId(pickPreferredSpeaker(currentDraft.speaker, snapshot.speaker)),
           text: snapshot.text,
         };
         resetDraftTimer();
