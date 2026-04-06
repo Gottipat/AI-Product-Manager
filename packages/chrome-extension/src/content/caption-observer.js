@@ -1,271 +1,426 @@
 /**
  * @fileoverview Content Script — Google Meet Caption Observer
  * @description Injected into Google Meet pages. Observes the DOM for live captions,
- *   deduplicates them, buffers events, and forwards to the background service worker.
- *
- * Reuses the same DOM selectors proven in bot-runner/src/captions/parser.ts
+ *   normalizes speaker names, segments cleaner utterances, and forwards finalized
+ *   transcript events to the background service worker.
  */
 
 /* ───────────────────────────────────────────
-   DOM Selectors (same as bot-runner)
+   DOM Selectors
    ─────────────────────────────────────────── */
 const SELECTORS = {
-    captionContainers: ['.iS70S', '[jsname="dsyhDe"]', '.iOzk7', '[class*="a4cQT"]'],
-    captionTexts: ['.McS7S', '[class*="TBMuR"]', '.CNusmb'],
-    speakerNames: ['.VpS7S', '[class*="zs7s8d"]', '.KcIKyf'],
+  captionContainers: ['.iS70S', '[jsname="dsyhDe"]', '.iOzk7', '[class*="a4cQT"]'],
+  captionTexts: ['.McS7S', '[class*="TBMuR"]', '.CNusmb'],
+  speakerNames: ['.VpS7S', '[class*="zs7s8d"]', '.KcIKyf'],
 };
+
+const SPEAKER_SELECTOR = SELECTORS.speakerNames.join(', ');
+const TEXT_SELECTOR = SELECTORS.captionTexts.join(', ');
 
 /* ───────────────────────────────────────────
    State
    ─────────────────────────────────────────── */
 let isCapturing = false;
 let observer = null;
-let lastSpeaker = '';
-let lastText = '';
+let observerRetryTimeout = null;
+let flushInterval = null;
+let draftCommitTimeout = null;
+let scanScheduled = false;
 let sequenceNumber = 0;
 let captionBuffer = [];
-let flushInterval = null;
+let currentDraft = null;
+let lastCommittedCaption = null;
 
-const BUFFER_FLUSH_MS = 5000; // flush every 5 seconds
+const BUFFER_FLUSH_MS = 4000;
+const DRAFT_IDLE_MS = 1400;
 const MAX_BATCH_SIZE = 20;
 
 /* ───────────────────────────────────────────
-   Caption Container Discovery
+   Helpers
    ─────────────────────────────────────────── */
+function normalizeSpeakerName(name) {
+  if (!name) return 'Unknown';
+
+  const normalized = name
+    .trim()
+    .replace(/\s*\(You\)$/i, '')
+    .replace(/\s*\(Host\)$/i, '')
+    .replace(/\s*\(Presenter\)$/i, '')
+    .replace(/\s*\(Guest\)$/i, '')
+    .replace(/devices$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return normalized || 'Unknown';
+}
+
+function buildSpeakerId(name) {
+  return `speaker:${
+    normalizeSpeakerName(name)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'unknown'
+  }`;
+}
+
 function findCaptionContainer() {
-    for (const selector of SELECTORS.captionContainers) {
-        const el = document.querySelector(selector);
-        if (el) return el;
-    }
-    return null;
+  for (const selector of SELECTORS.captionContainers) {
+    const el = document.querySelector(selector);
+    if (el) return el;
+  }
+  return null;
 }
 
-function extractSpeaker(container) {
-    const combinedSelector = SELECTORS.speakerNames.join(', ');
-    const elements = container.querySelectorAll(combinedSelector);
-    if (elements.length > 0) {
-        const last = elements[elements.length - 1];
-        return last?.textContent?.trim() || 'Unknown';
+function findCaptionRow(startNode, container) {
+  let current = startNode instanceof Element ? startNode : startNode?.parentElement;
+
+  while (current && current !== container) {
+    const hasSpeaker = current.querySelector(SPEAKER_SELECTOR);
+    const hasText = current.querySelector(TEXT_SELECTOR);
+    if (hasSpeaker && hasText) {
+      return current;
     }
-    return 'Unknown';
+    current = current.parentElement;
+  }
+
+  return null;
 }
 
-function extractText(container) {
-    const combinedSelector = SELECTORS.captionTexts.join(', ');
-    const elements = container.querySelectorAll(combinedSelector);
-    if (elements.length > 0) {
-        const last = elements[elements.length - 1];
-        return last?.textContent?.trim() || '';
-    }
-    return '';
+function collectTextFromNode(node) {
+  if (!node) return '';
+
+  const textElements = Array.from(node.querySelectorAll(TEXT_SELECTOR));
+  if (textElements.length === 0) {
+    return node.textContent?.trim() || '';
+  }
+
+  const parts = textElements.map((element) => element.textContent?.trim() || '').filter(Boolean);
+
+  return Array.from(new Set(parts)).join(' ').replace(/\s+/g, ' ').trim();
 }
 
-/* ───────────────────────────────────────────
-   Caption Extraction + Deduplication
-   ─────────────────────────────────────────── */
-function handleCaptionMutation(container) {
-    const speaker = extractSpeaker(container);
-    const text = extractText(container);
+function extractLatestCaption(container) {
+  const speakerElements = Array.from(container.querySelectorAll(SPEAKER_SELECTOR)).filter(
+    (element) => element.textContent?.trim()
+  );
 
-    if (!text) return;
+  if (speakerElements.length > 0) {
+    const latestSpeakerElement = speakerElements[speakerElements.length - 1];
+    const row = findCaptionRow(latestSpeakerElement, container);
+    const speaker = normalizeSpeakerName(latestSpeakerElement.textContent?.trim() || '');
+    const text = collectTextFromNode(row || container);
 
-    // Exact duplicate — skip
-    if (speaker === lastSpeaker && text === lastText) return;
-
-    // Detect continuation (same speaker, text starts with previous text)
-    const isContinuation = speaker === lastSpeaker && text.startsWith(lastText);
-
-    lastSpeaker = speaker;
-    lastText = text;
-
-    sequenceNumber++;
-
-    const event = {
+    if (text) {
+      return {
         speaker,
-        content: text,
-        sequenceNumber,
-        isFinal: !isContinuation,
-        capturedAt: new Date().toISOString(),
-    };
-
-    captionBuffer.push(event);
-
-    // Flush if buffer is full
-    if (captionBuffer.length >= MAX_BATCH_SIZE) {
-        flushBuffer();
+        speakerId: buildSpeakerId(speaker),
+        text,
+      };
     }
+  }
 
-    // Notify background of live stats
-    chrome.runtime.sendMessage({
-        type: 'CAPTION_STATS',
-        data: { totalEvents: sequenceNumber, bufferSize: captionBuffer.length },
-    });
+  const fallbackText = collectTextFromNode(container);
+  if (!fallbackText) {
+    return null;
+  }
+
+  const fallbackSpeakerElement = container.querySelector(SPEAKER_SELECTOR);
+  const fallbackSpeaker = normalizeSpeakerName(
+    fallbackSpeakerElement?.textContent?.trim() || 'Unknown'
+  );
+
+  return {
+    speaker: fallbackSpeaker,
+    speakerId: buildSpeakerId(fallbackSpeaker),
+    text: fallbackText,
+  };
 }
 
-/* ───────────────────────────────────────────
-   Buffer Flushing
-   ─────────────────────────────────────────── */
+function notifyStats() {
+  chrome.runtime.sendMessage({
+    type: 'CAPTION_STATS',
+    data: {
+      totalEvents: sequenceNumber,
+      bufferSize: captionBuffer.length,
+      hasDraft: Boolean(currentDraft),
+      draftSpeaker: currentDraft?.speaker || null,
+    },
+  });
+}
+
 function flushBuffer() {
-    if (captionBuffer.length === 0) return;
+  if (captionBuffer.length === 0) return;
 
-    const batch = [...captionBuffer];
-    captionBuffer = [];
+  const batch = [...captionBuffer];
+  captionBuffer = [];
 
-    chrome.runtime.sendMessage({
-        type: 'TRANSCRIPT_BATCH',
-        data: { events: batch },
-    });
+  chrome.runtime.sendMessage({
+    type: 'TRANSCRIPT_BATCH',
+    data: { events: batch },
+  });
+
+  notifyStats();
+}
+
+function finalizeDraft() {
+  if (!currentDraft || !currentDraft.text) return;
+
+  if (
+    lastCommittedCaption &&
+    lastCommittedCaption.speaker === currentDraft.speaker &&
+    lastCommittedCaption.text === currentDraft.text
+  ) {
+    currentDraft = null;
+    notifyStats();
+    return;
+  }
+
+  sequenceNumber += 1;
+
+  const event = {
+    speaker: currentDraft.speaker,
+    speakerId: currentDraft.speakerId,
+    content: currentDraft.text,
+    sequenceNumber,
+    isFinal: true,
+    capturedAt: new Date().toISOString(),
+  };
+
+  captionBuffer.push(event);
+  lastCommittedCaption = {
+    speaker: currentDraft.speaker,
+    text: currentDraft.text,
+  };
+  currentDraft = null;
+
+  if (captionBuffer.length >= MAX_BATCH_SIZE) {
+    flushBuffer();
+  } else {
+    notifyStats();
+  }
+}
+
+function resetDraftTimer() {
+  if (draftCommitTimeout) {
+    clearTimeout(draftCommitTimeout);
+  }
+
+  draftCommitTimeout = setTimeout(() => {
+    finalizeDraft();
+  }, DRAFT_IDLE_MS);
+}
+
+function startDraft(snapshot) {
+  currentDraft = {
+    speaker: snapshot.speaker,
+    speakerId: snapshot.speakerId,
+    text: snapshot.text,
+  };
+  resetDraftTimer();
+  notifyStats();
+}
+
+function handleObservedCaption(snapshot) {
+  if (!snapshot || !snapshot.text) return;
+
+  if (!currentDraft) {
+    startDraft(snapshot);
+    return;
+  }
+
+  if (snapshot.speaker === currentDraft.speaker) {
+    if (snapshot.text === currentDraft.text) {
+      resetDraftTimer();
+      return;
+    }
+
+    if (snapshot.text.startsWith(currentDraft.text)) {
+      currentDraft = {
+        ...currentDraft,
+        text: snapshot.text,
+      };
+      resetDraftTimer();
+      notifyStats();
+      return;
+    }
+
+    if (currentDraft.text.startsWith(snapshot.text)) {
+      resetDraftTimer();
+      return;
+    }
+
+    finalizeDraft();
+    startDraft(snapshot);
+    return;
+  }
+
+  finalizeDraft();
+  startDraft(snapshot);
+}
+
+function scheduleScan(container) {
+  if (scanScheduled) return;
+
+  scanScheduled = true;
+  requestAnimationFrame(() => {
+    scanScheduled = false;
+    const snapshot = extractLatestCaption(container);
+    handleObservedCaption(snapshot);
+  });
 }
 
 /* ───────────────────────────────────────────
    Observer Setup
    ─────────────────────────────────────────── */
-function startObserving() {
-    const container = findCaptionContainer();
+function startObserving(retryCount = 0) {
+  const container = findCaptionContainer();
 
-    if (!container) {
-        console.log('[Meeting AI] Caption container not found — retrying in 3s...');
-        setTimeout(startObserving, 3000);
-        return;
-    }
+  if (!container) {
+    console.log('[Meeting AI] Caption container not found — retrying in 3s...');
+    observerRetryTimeout = setTimeout(() => startObserving(retryCount + 1), 3000);
+    return;
+  }
 
-    console.log('[Meeting AI] ✅ Found caption container, starting observation');
+  console.log('[Meeting AI] Found caption container, starting observation');
 
-    observer = new MutationObserver(() => {
-        handleCaptionMutation(container);
-    });
+  observer = new MutationObserver(() => {
+    scheduleScan(container);
+  });
 
-    observer.observe(container, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-    });
+  observer.observe(container, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
 
-    // Initial extraction
-    handleCaptionMutation(container);
+  scheduleScan(container);
+  flushInterval = setInterval(flushBuffer, BUFFER_FLUSH_MS);
+  isCapturing = true;
 
-    // Periodic buffer flush
-    flushInterval = setInterval(flushBuffer, BUFFER_FLUSH_MS);
-
-    isCapturing = true;
-
-    chrome.runtime.sendMessage({ type: 'CAPTURE_STARTED' });
+  chrome.runtime.sendMessage({ type: 'CAPTURE_STARTED' });
 }
 
 function stopObserving() {
-    if (observer) {
-        observer.disconnect();
-        observer = null;
-    }
-    if (flushInterval) {
-        clearInterval(flushInterval);
-        flushInterval = null;
-    }
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+  }
 
-    // Final flush
-    flushBuffer();
+  if (observerRetryTimeout) {
+    clearTimeout(observerRetryTimeout);
+    observerRetryTimeout = null;
+  }
 
-    isCapturing = false;
-    console.log('[Meeting AI] Caption observation stopped');
+  if (flushInterval) {
+    clearInterval(flushInterval);
+    flushInterval = null;
+  }
 
-    chrome.runtime.sendMessage({
-        type: 'CAPTURE_STOPPED',
-        data: { totalEvents: sequenceNumber },
-    });
+  if (draftCommitTimeout) {
+    clearTimeout(draftCommitTimeout);
+    draftCommitTimeout = null;
+  }
+
+  finalizeDraft();
+  flushBuffer();
+
+  isCapturing = false;
+  scanScheduled = false;
+
+  console.log('[Meeting AI] Caption observation stopped');
+
+  chrome.runtime.sendMessage({
+    type: 'CAPTURE_STOPPED',
+    data: { totalEvents: sequenceNumber },
+  });
 }
 
 /* ───────────────────────────────────────────
    Captions Button Auto-Enable
    ─────────────────────────────────────────── */
 function tryEnableCaptions() {
-    // Google Meet caption toggle button selectors
-    const captionBtnSelectors = [
-        '[aria-label*="captions" i]',
-        '[aria-label*="subtitle" i]',
-        '[data-tooltip*="captions" i]',
-        'button[jsname="r8qRAd"]',
-    ];
+  const captionBtnSelectors = [
+    '[aria-label*="captions" i]',
+    '[aria-label*="subtitle" i]',
+    '[data-tooltip*="captions" i]',
+    'button[jsname="r8qRAd"]',
+  ];
 
-    for (const selector of captionBtnSelectors) {
-        const btn = document.querySelector(selector);
-        if (btn) {
-            // Check if captions are already enabled by checking aria-pressed or similar
-            const isActive =
-                btn.getAttribute('aria-pressed') === 'true' ||
-                btn.classList.contains('Hh2bgf'); // active state class
+  for (const selector of captionBtnSelectors) {
+    const btn = document.querySelector(selector);
+    if (!btn) continue;
 
-            if (!isActive) {
-                console.log('[Meeting AI] Enabling captions...');
-                btn.click();
-                return true;
-            } else {
-                console.log('[Meeting AI] Captions already enabled');
-                return true;
-            }
-        }
+    const isActive =
+      btn.getAttribute('aria-pressed') === 'true' || btn.classList.contains('Hh2bgf');
+
+    if (!isActive) {
+      console.log('[Meeting AI] Enabling captions...');
+      btn.click();
+    } else {
+      console.log('[Meeting AI] Captions already enabled');
     }
 
-    console.log('[Meeting AI] Caption button not found — user may need to enable manually');
-    return false;
+    return true;
+  }
+
+  console.log('[Meeting AI] Caption button not found — user may need to enable manually');
+  return false;
 }
 
 /* ───────────────────────────────────────────
    Message Handling from Background
    ─────────────────────────────────────────── */
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    switch (message.type) {
-        case 'START_CAPTURE':
-            console.log('[Meeting AI] Received START_CAPTURE command');
-            sequenceNumber = 0;
-            captionBuffer = [];
-            lastSpeaker = '';
-            lastText = '';
+  switch (message.type) {
+    case 'START_CAPTURE':
+      console.log('[Meeting AI] Received START_CAPTURE command');
+      sequenceNumber = 0;
+      captionBuffer = [];
+      currentDraft = null;
+      lastCommittedCaption = null;
 
-            // Try to enable captions first
-            tryEnableCaptions();
+      tryEnableCaptions();
+      setTimeout(() => startObserving(), 2000);
 
-            // Wait a moment for captions to appear, then start observing
-            setTimeout(startObserving, 2000);
-            sendResponse({ success: true });
-            break;
+      sendResponse({ success: true });
+      break;
 
-        case 'STOP_CAPTURE':
-            console.log('[Meeting AI] Received STOP_CAPTURE command');
-            stopObserving();
-            sendResponse({ success: true, totalEvents: sequenceNumber });
-            break;
+    case 'STOP_CAPTURE':
+      console.log('[Meeting AI] Received STOP_CAPTURE command');
+      stopObserving();
+      sendResponse({ success: true, totalEvents: sequenceNumber });
+      break;
 
-        case 'GET_STATUS':
-            sendResponse({
-                isCapturing,
-                totalEvents: sequenceNumber,
-                bufferSize: captionBuffer.length,
-                pageUrl: window.location.href,
-            });
-            break;
+    case 'GET_STATUS':
+      sendResponse({
+        isCapturing,
+        totalEvents: sequenceNumber,
+        bufferSize: captionBuffer.length,
+        draftSpeaker: currentDraft?.speaker || null,
+        pageUrl: window.location.href,
+      });
+      break;
 
-        default:
-            break;
-    }
+    default:
+      break;
+  }
 
-    return true; // keep message channel open for async response
+  return true;
 });
 
 /* ───────────────────────────────────────────
    Page Detection
    ─────────────────────────────────────────── */
 function isInMeeting() {
-    // Check if we're in an active Google Meet session (not the landing/lobby page)
-    const url = window.location.href;
-    return url.includes('meet.google.com/') && !url.endsWith('meet.google.com/');
+  const url = window.location.href;
+  return url.includes('meet.google.com/') && !url.endsWith('meet.google.com/');
 }
 
-// Notify background that content script is loaded on a Meet page
 if (isInMeeting()) {
-    chrome.runtime.sendMessage({
-        type: 'MEET_PAGE_DETECTED',
-        data: { url: window.location.href },
-    });
+  chrome.runtime.sendMessage({
+    type: 'MEET_PAGE_DETECTED',
+    data: { url: window.location.href },
+  });
 }
 
 console.log('[Meeting AI] Content script loaded on Google Meet page');
