@@ -13,6 +13,7 @@ let activeMeetingId = null;
 let audioContext = null;
 let audioDestination = null;
 let audioMixMode = 'tab_only';
+let activeUploadConfig = null;
 
 function getPreferredMimeType() {
   if (typeof MediaRecorder === 'undefined') {
@@ -53,6 +54,7 @@ async function resetRecordingState() {
   activeMeetingId = null;
   mediaRecorder = null;
   audioMixMode = 'tab_only';
+  activeUploadConfig = null;
   stopTracks();
 
   if (audioContext) {
@@ -67,14 +69,6 @@ async function resetRecordingState() {
   audioDestination = null;
 }
 
-async function getBackendConfig() {
-  const { backendUrl, authToken } = await chrome.storage.local.get(['backendUrl', 'authToken']);
-  return {
-    backendUrl: (backendUrl || 'http://localhost:3002').replace(/\/$/, ''),
-    authToken: authToken || null,
-  };
-}
-
 async function uploadAudio(meetingId, blob) {
   if (!meetingId) {
     throw new Error('Missing meeting ID for audio upload.');
@@ -84,7 +78,8 @@ async function uploadAudio(meetingId, blob) {
     throw new Error('Recorded audio was empty.');
   }
 
-  const { backendUrl, authToken } = await getBackendConfig();
+  const backendUrl = (activeUploadConfig?.backendUrl || 'http://localhost:3002').replace(/\/$/, '');
+  const authToken = activeUploadConfig?.authToken || null;
   const headers = {
     'Content-Type': blob.type || 'audio/webm',
   };
@@ -117,7 +112,7 @@ async function uploadAudio(meetingId, blob) {
   return data;
 }
 
-async function startRecording(streamId, meetingId) {
+async function startRecording(streamId, meetingId, uploadConfig = null) {
   if (!streamId) {
     throw new Error('Missing tab audio stream ID.');
   }
@@ -139,6 +134,7 @@ async function startRecording(streamId, meetingId) {
   tabStream = await navigator.mediaDevices.getUserMedia(tabConstraints);
   audioChunks = [];
   activeMeetingId = meetingId;
+  activeUploadConfig = uploadConfig;
   audioMixMode = 'tab_only';
 
   audioContext = new AudioContext();
@@ -243,7 +239,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     case 'OFFSCREEN_START_AUDIO_RECORDING':
       (async () => {
         try {
-          const result = await startRecording(message.data?.streamId, message.data?.meetingId);
+          const result = await startRecording(
+            message.data?.streamId,
+            message.data?.meetingId,
+            message.data?.uploadConfig || null
+          );
           sendResponse({ success: true, ...result });
         } catch (error) {
           await resetRecordingState();

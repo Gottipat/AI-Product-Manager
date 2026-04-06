@@ -154,6 +154,24 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     return sanitized.replace(/\s+/g, ' ').trim();
   }
 
+  function getSpeakerCount(node) {
+    const speakerElements = [
+      ...(node.matches?.(SPEAKER_SELECTOR) ? [node] : []),
+      ...node.querySelectorAll(SPEAKER_SELECTOR),
+    ];
+
+    return new Set(
+      speakerElements
+        .map((element) => normalizeSpeakerName(readVisibleText(element)))
+        .filter((candidate) => isLikelySpeakerName(candidate))
+    ).size;
+  }
+
+  function getTextElementCount(node) {
+    const ownMatch = node.matches?.(TEXT_SELECTOR) ? 1 : 0;
+    return ownMatch + node.querySelectorAll(TEXT_SELECTOR).length;
+  }
+
   function findCaptionRow(startNode, container) {
     let current = startNode instanceof Element ? startNode : startNode?.parentElement;
     let fallback = null;
@@ -164,16 +182,39 @@ if (globalThis.__meetingAiContentObserverInstalled) {
       const hasText =
         current.matches?.(TEXT_SELECTOR) || Boolean(current.querySelector(TEXT_SELECTOR));
       const visibleTextLength = readVisibleText(current).length;
+      const speakerCount = getSpeakerCount(current);
+      const textElementCount = getTextElementCount(current);
 
-      if (!fallback && hasText) {
+      if (
+        !fallback &&
+        hasText &&
+        speakerCount <= 1 &&
+        textElementCount <= 3 &&
+        visibleTextLength > 0 &&
+        visibleTextLength < 220
+      ) {
         fallback = current;
       }
 
-      if (hasSpeaker && hasText) {
+      if (
+        hasSpeaker &&
+        hasText &&
+        speakerCount === 1 &&
+        textElementCount >= 1 &&
+        textElementCount <= 4 &&
+        visibleTextLength > 0 &&
+        visibleTextLength < 260
+      ) {
         return current;
       }
 
-      if (hasText && visibleTextLength > 0 && visibleTextLength < 240) {
+      if (
+        hasText &&
+        speakerCount <= 1 &&
+        textElementCount <= 2 &&
+        visibleTextLength > 0 &&
+        visibleTextLength < 180
+      ) {
         fallback = current;
       }
 

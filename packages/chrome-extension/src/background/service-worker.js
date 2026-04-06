@@ -346,7 +346,14 @@ async function startAudioCapture(tabId, meetingId) {
 
   const response = await sendRuntimeMessage({
     type: 'OFFSCREEN_START_AUDIO_RECORDING',
-    data: { streamId, meetingId },
+    data: {
+      streamId,
+      meetingId,
+      uploadConfig: {
+        backendUrl,
+        authToken,
+      },
+    },
   });
 
   if (!response?.success) {
