@@ -44,7 +44,7 @@ if (globalThis.__meetingAiContentObserverInstalled) {
   let recentPreviewLines = [];
 
   const BUFFER_FLUSH_MS = 4000;
-  const DRAFT_IDLE_MS = 1400;
+  const DRAFT_IDLE_MS = 2600;
   const MAX_BATCH_SIZE = 20;
   const MAX_PREVIEW_LINES = 6;
 
@@ -147,11 +147,20 @@ if (globalThis.__meetingAiContentObserverInstalled) {
       const escapedSpeaker = escapeRegExp(speaker);
       sanitized = sanitized
         .replace(new RegExp(`^${escapedSpeaker}\\s*[:\\-–—]\\s*`, 'i'), '')
+        .replace(new RegExp(`^${escapedSpeaker}\\s+(?=[A-Z])`, 'i'), '')
         .replace(new RegExp(`^${escapedSpeaker}(?=[A-Z])`, 'i'), '')
         .trim();
     }
 
     return sanitized.replace(/\s+/g, ' ').trim();
+  }
+
+  function canonicalizeCaptionText(text) {
+    return text
+      .toLowerCase()
+      .replace(/[.,!?;:()[\]{}"'`_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   function getSpeakerCount(node) {
@@ -390,6 +399,36 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     return normalizedNext.length >= normalizedCurrent.length ? normalizedNext : normalizedCurrent;
   }
 
+  function textsLikelyMatch(previousText, nextText) {
+    const previousCanonical = canonicalizeCaptionText(previousText);
+    const nextCanonical = canonicalizeCaptionText(nextText);
+
+    if (!previousCanonical || !nextCanonical) {
+      return false;
+    }
+
+    return (
+      nextCanonical === previousCanonical ||
+      nextCanonical.startsWith(previousCanonical) ||
+      previousCanonical.startsWith(nextCanonical)
+    );
+  }
+
+  function pickPreferredText(previousText, nextText) {
+    const previousCanonical = canonicalizeCaptionText(previousText);
+    const nextCanonical = canonicalizeCaptionText(nextText);
+
+    if (nextCanonical.startsWith(previousCanonical)) {
+      return nextText.length >= previousText.length ? nextText : previousText;
+    }
+
+    if (previousCanonical.startsWith(nextCanonical)) {
+      return previousText.length >= nextText.length ? previousText : nextText;
+    }
+
+    return nextText.length >= previousText.length ? nextText : previousText;
+  }
+
   function notifyStats() {
     chrome.runtime.sendMessage({
       type: 'CAPTION_STATS',
@@ -508,17 +547,28 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     }
 
     if (speakersLikelyMatch(snapshot.speaker, currentDraft.speaker)) {
-      if (snapshot.text === currentDraft.text) {
+      if (
+        snapshot.text === currentDraft.text ||
+        textsLikelyMatch(currentDraft.text, snapshot.text)
+      ) {
         resetDraftTimer();
-        return;
-      }
-
-      if (snapshot.text.startsWith(currentDraft.text)) {
         currentDraft = {
           ...currentDraft,
           speaker: pickPreferredSpeaker(currentDraft.speaker, snapshot.speaker),
           speakerId: buildSpeakerId(pickPreferredSpeaker(currentDraft.speaker, snapshot.speaker)),
-          text: snapshot.text,
+          text: pickPreferredText(currentDraft.text, snapshot.text),
+        };
+        notifyStats();
+        notifyPreview();
+        return;
+      }
+
+      if (textsLikelyMatch(currentDraft.text, snapshot.text)) {
+        currentDraft = {
+          ...currentDraft,
+          speaker: pickPreferredSpeaker(currentDraft.speaker, snapshot.speaker),
+          speakerId: buildSpeakerId(pickPreferredSpeaker(currentDraft.speaker, snapshot.speaker)),
+          text: pickPreferredText(currentDraft.text, snapshot.text),
         };
         resetDraftTimer();
         notifyStats();
@@ -526,7 +576,7 @@ if (globalThis.__meetingAiContentObserverInstalled) {
         return;
       }
 
-      if (currentDraft.text.startsWith(snapshot.text)) {
+      if (textsLikelyMatch(snapshot.text, currentDraft.text)) {
         resetDraftTimer();
         return;
       }
