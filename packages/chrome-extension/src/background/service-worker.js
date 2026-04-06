@@ -17,6 +17,16 @@ let captureActive = false;
 let pendingTranscriptBatches = [];
 let nextBatchId = 1;
 let queueFlushPromise = null;
+let queueRetryTimeout = null;
+let retryAttempt = 0;
+let syncState = 'idle';
+let lastSyncError = null;
+let recentPreviewLines = [];
+let currentDraftPreview = null;
+
+const MAX_PREVIEW_LINES = 6;
+const RETRY_BASE_DELAY_MS = 2500;
+const RETRY_MAX_DELAY_MS = 15000;
 
 /* ───────────────────────────────────────────
    Helpers
@@ -63,6 +73,11 @@ async function persistRuntimeState() {
     totalSentEvents,
     pendingTranscriptBatches,
     nextBatchId,
+    retryAttempt,
+    syncState,
+    lastSyncError,
+    recentPreviewLines,
+    currentDraftPreview,
   });
 }
 
@@ -78,9 +93,54 @@ async function updateStoredStats(extra = {}) {
         (total, batch) => total + batch.events.length,
         0
       ),
+      retryAttempt,
+      syncState,
+      lastSyncError,
       lastUpdated: Date.now(),
     },
   });
+}
+
+async function persistPreviewState() {
+  await chrome.storage.local.set({
+    transcriptPreview: {
+      recentLines: recentPreviewLines,
+      draft: currentDraftPreview,
+      updatedAt: Date.now(),
+    },
+  });
+}
+
+async function updateSyncState(nextState, errorMessage = null) {
+  syncState = nextState;
+  lastSyncError = errorMessage;
+  await persistRuntimeState();
+  await updateStoredStats();
+}
+
+function clearRetryTimer() {
+  if (queueRetryTimeout) {
+    clearTimeout(queueRetryTimeout);
+    queueRetryTimeout = null;
+  }
+}
+
+function scheduleQueueRetry() {
+  if (queueRetryTimeout || pendingTranscriptBatches.length === 0 || !captureActive) {
+    return;
+  }
+
+  const delayMs = Math.min(
+    RETRY_BASE_DELAY_MS * 2 ** Math.max(retryAttempt - 1, 0),
+    RETRY_MAX_DELAY_MS
+  );
+
+  queueRetryTimeout = setTimeout(() => {
+    queueRetryTimeout = null;
+    flushTranscriptQueue().catch((error) => {
+      console.warn('[Meeting AI BG] Retry flush failed:', error);
+    });
+  }, delayMs);
 }
 
 /* ───────────────────────────────────────────
@@ -170,6 +230,10 @@ async function enqueueTranscriptBatch(meetingId, events) {
     createdAt: Date.now(),
   });
 
+  if (syncState === 'idle' || syncState === 'synced') {
+    syncState = 'queued';
+  }
+
   await persistRuntimeState();
   await updateStoredStats();
   await flushTranscriptQueue();
@@ -181,6 +245,18 @@ async function flushTranscriptQueue() {
   }
 
   queueFlushPromise = (async () => {
+    if (pendingTranscriptBatches.length === 0) {
+      if (captureActive) {
+        await updateSyncState('synced');
+      } else {
+        await updateSyncState('idle');
+      }
+      return;
+    }
+
+    clearRetryTimer();
+    await updateSyncState('syncing');
+
     while (pendingTranscriptBatches.length > 0) {
       const nextBatch = pendingTranscriptBatches[0];
       if (!nextBatch) break;
@@ -189,6 +265,7 @@ async function flushTranscriptQueue() {
         await sendTranscriptBatch(nextBatch.meetingId, nextBatch.events);
         totalSentEvents += nextBatch.events.length;
         pendingTranscriptBatches.shift();
+        retryAttempt = 0;
         await persistRuntimeState();
         await updateStoredStats();
 
@@ -197,8 +274,18 @@ async function flushTranscriptQueue() {
         );
       } catch (error) {
         console.error('[Meeting AI BG] Batch send failed:', error);
+        retryAttempt += 1;
+        await updateSyncState(
+          'retrying',
+          error instanceof Error ? error.message : 'Transcript sync failed'
+        );
+        scheduleQueueRetry();
         break;
       }
+    }
+
+    if (pendingTranscriptBatches.length === 0) {
+      await updateSyncState(captureActive ? 'synced' : 'idle');
     }
   })();
 
@@ -219,7 +306,7 @@ async function waitForTranscriptQueue(timeoutMs = 12000) {
       return true;
     }
 
-    await delay(300);
+    await delay(400);
   }
 
   return pendingTranscriptBatches.length === 0;
@@ -248,6 +335,12 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
     captureActive = true;
     pendingTranscriptBatches = [];
     nextBatchId = 1;
+    retryAttempt = 0;
+    syncState = 'queued';
+    lastSyncError = null;
+    recentPreviewLines = [];
+    currentDraftPreview = null;
+    clearRetryTimer();
 
     console.log(
       `[Meeting AI BG] Meeting created: ${currentMeetingId} (project: ${projectId || 'none'})`
@@ -255,12 +348,13 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
 
     await startMeeting(currentMeetingId);
     await persistRuntimeState();
+    await persistPreviewState();
 
     await chrome.storage.local.set({
       meetUrl,
       captureStartedAt: Date.now(),
     });
-    await updateStoredStats({ totalEvents: 0, bufferSize: 0 });
+    await updateStoredStats({ totalEvents: 0, bufferSize: 0, hasDraft: false, draftSpeaker: null });
 
     const response = await sendMessageToTab(tabId, { type: 'START_CAPTURE' });
     if (response && response.success === false) {
@@ -273,6 +367,8 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
     captureActive = false;
     currentMeetingId = null;
     currentProjectId = null;
+    syncState = 'idle';
+    lastSyncError = error.message;
     await persistRuntimeState();
     return { success: false, error: error.message };
   }
@@ -288,6 +384,7 @@ async function handleStopCapture(tabId) {
       console.warn(
         '[Meeting AI BG] Timed out waiting for transcript queue to flush before completion'
       );
+      await updateSyncState('retrying', 'Some transcript batches are still queued.');
     }
 
     if (currentMeetingId) {
@@ -313,7 +410,15 @@ async function handleStopCapture(tabId) {
     const completedMeetingId = currentMeetingId;
     currentMeetingId = null;
     currentProjectId = null;
+    clearRetryTimer();
+    recentPreviewLines = [];
+    currentDraftPreview = null;
+    syncState = queueFlushed ? 'idle' : 'retrying';
+    if (queueFlushed) {
+      lastSyncError = null;
+    }
     await persistRuntimeState();
+    await persistPreviewState();
 
     await chrome.storage.local.set({
       captureActive: false,
@@ -352,6 +457,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'CAPTION_STATS':
       (async () => {
         await updateStoredStats(message.data || {});
+        sendResponse({ success: true });
+      })();
+      return true;
+
+    case 'TRANSCRIPT_PREVIEW':
+      (async () => {
+        const draft = message.data?.draft || null;
+        const finalEvent = message.data?.finalEvent || null;
+
+        if (finalEvent?.speaker && finalEvent?.content) {
+          recentPreviewLines.push({
+            speaker: finalEvent.speaker,
+            content: finalEvent.content,
+            capturedAt: finalEvent.capturedAt || new Date().toISOString(),
+          });
+          recentPreviewLines = recentPreviewLines.slice(-MAX_PREVIEW_LINES);
+        }
+
+        currentDraftPreview =
+          draft?.speaker && draft?.content
+            ? {
+                speaker: draft.speaker,
+                content: draft.content,
+                capturedAt: new Date().toISOString(),
+              }
+            : null;
+
+        await persistRuntimeState();
+        await persistPreviewState();
         sendResponse({ success: true });
       })();
       return true;
@@ -395,6 +529,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         currentProjectId,
         totalSentEvents,
         queuedBatches: pendingTranscriptBatches.length,
+        queuedEvents: pendingTranscriptBatches.reduce(
+          (total, batch) => total + batch.events.length,
+          0
+        ),
+        syncState,
+        lastSyncError,
+        retryAttempt,
+        recentPreviewLines,
+        currentDraftPreview,
         backendUrl,
       });
       break;
@@ -453,6 +596,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     'totalSentEvents',
     'pendingTranscriptBatches',
     'nextBatchId',
+    'retryAttempt',
+    'syncState',
+    'lastSyncError',
+    'recentPreviewLines',
+    'currentDraftPreview',
   ]);
 
   if (settings.backendUrl) backendUrl = settings.backendUrl;
@@ -467,8 +615,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (typeof settings.nextBatchId === 'number') {
     nextBatchId = settings.nextBatchId;
   }
+  if (typeof settings.retryAttempt === 'number') {
+    retryAttempt = settings.retryAttempt;
+  }
+  if (typeof settings.syncState === 'string') {
+    syncState = settings.syncState;
+  }
+  if (typeof settings.lastSyncError === 'string') {
+    lastSyncError = settings.lastSyncError;
+  }
+  if (Array.isArray(settings.recentPreviewLines)) {
+    recentPreviewLines = settings.recentPreviewLines;
+  }
+  if (settings.currentDraftPreview) {
+    currentDraftPreview = settings.currentDraftPreview;
+  }
 
   if (captureActive && pendingTranscriptBatches.length > 0) {
+    scheduleQueueRetry();
     flushTranscriptQueue().catch((error) => {
       console.warn('[Meeting AI BG] Failed to flush queued transcript batches on init:', error);
     });
@@ -478,5 +642,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     backendUrl,
     captureActive,
     queuedBatches: pendingTranscriptBatches.length,
+    syncState,
   });
 })();

@@ -32,6 +32,12 @@ const els = {
   sentCount: $('sentCount'),
   durationDisplay: $('durationDisplay'),
   meetingIdDisplay: $('meetingIdDisplay'),
+  syncStatusPill: $('syncStatusPill'),
+  syncStatusText: $('syncStatusText'),
+  queueStatusText: $('queueStatusText'),
+  previewEmpty: $('previewEmpty'),
+  previewList: $('previewList'),
+  draftBadge: $('draftBadge'),
   stopBtn: $('stopBtn'),
 
   // Settings
@@ -99,6 +105,120 @@ function formatDuration(ms) {
 function shortenId(id) {
   if (!id) return '—';
   return id.substring(0, 8) + '...';
+}
+
+function formatQueueSummary(queuedEvents, queuedBatches) {
+  if (!queuedEvents) {
+    return 'All finalized transcript lines are synced to the backend.';
+  }
+
+  const eventLabel = queuedEvents === 1 ? 'event' : 'events';
+  const batchLabel = queuedBatches === 1 ? 'batch' : 'batches';
+  return `${queuedEvents} ${eventLabel} queued across ${queuedBatches} ${batchLabel}.`;
+}
+
+function setSyncStatus(
+  syncState,
+  queuedEvents = 0,
+  queuedBatches = 0,
+  retryAttempt = 0,
+  lastSyncError = null
+) {
+  const normalizedState = syncState || 'idle';
+  const statusLabels = {
+    idle: 'Idle',
+    queued: 'Queued',
+    syncing: 'Syncing',
+    synced: 'Synced',
+    retrying: 'Retrying',
+    error: 'Error',
+  };
+
+  els.syncStatusPill.className = `sync-pill ${normalizedState}`;
+  els.syncStatusPill.textContent = statusLabels[normalizedState] || 'Idle';
+  els.queueStatusText.textContent = formatQueueSummary(queuedEvents, queuedBatches);
+
+  if (normalizedState === 'retrying') {
+    const retryText = retryAttempt > 0 ? ` Retrying automatically (attempt ${retryAttempt}).` : '';
+    els.syncStatusText.textContent =
+      lastSyncError || `The backend sync failed temporarily.${retryText}`;
+    return;
+  }
+
+  if (normalizedState === 'queued') {
+    els.syncStatusText.textContent = 'Transcript lines are waiting to be delivered.';
+    return;
+  }
+
+  if (normalizedState === 'syncing') {
+    els.syncStatusText.textContent = 'Delivering transcript lines to the backend now.';
+    return;
+  }
+
+  if (normalizedState === 'synced') {
+    els.syncStatusText.textContent = 'Backend is caught up with the captured transcript.';
+    return;
+  }
+
+  if (normalizedState === 'error') {
+    els.syncStatusText.textContent = lastSyncError || 'Transcript delivery failed.';
+    return;
+  }
+
+  els.syncStatusText.textContent = 'Waiting for transcript events.';
+}
+
+function renderPreview(recentLines = [], draft = null) {
+  els.previewList.innerHTML = '';
+
+  const rows = [...recentLines];
+  if (draft?.speaker && draft?.content) {
+    rows.push({ ...draft, isDraft: true });
+    els.draftBadge.style.display = 'inline-flex';
+  } else {
+    els.draftBadge.style.display = 'none';
+  }
+
+  if (rows.length === 0) {
+    els.previewEmpty.style.display = 'block';
+    return;
+  }
+
+  els.previewEmpty.style.display = 'none';
+
+  rows.slice(-6).forEach((row) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = `preview-row${row.isDraft ? ' is-draft' : ''}`;
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'preview-meta';
+
+    const speakerEl = document.createElement('span');
+    speakerEl.className = 'preview-speaker';
+    speakerEl.textContent = row.speaker || 'Unknown';
+
+    const badgeEl = document.createElement('span');
+    badgeEl.className = 'preview-badge';
+    badgeEl.textContent = row.isDraft ? 'Draft' : 'Final';
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'preview-content';
+    contentEl.textContent = row.content || '';
+
+    metaEl.appendChild(speakerEl);
+    metaEl.appendChild(badgeEl);
+    rowEl.appendChild(metaEl);
+    rowEl.appendChild(contentEl);
+    els.previewList.appendChild(rowEl);
+  });
+}
+
+function resetCapturePanels() {
+  els.eventCount.textContent = '0';
+  els.sentCount.textContent = '0';
+  els.meetingIdDisplay.textContent = '—';
+  setSyncStatus('idle', 0, 0, 0, null);
+  renderPreview([], null);
 }
 
 function startDurationTimer() {
@@ -186,6 +306,8 @@ async function init() {
     'currentProjectId',
     'captureStartedAt',
     'meetUrl',
+    'captionStats',
+    'transcriptPreview',
   ]);
 
   if (settings.backendUrl) {
@@ -247,10 +369,26 @@ async function init() {
         }
       }
 
+      const stats = settings.captionStats || {};
+      els.eventCount.textContent = stats.totalEvents || 0;
+      els.sentCount.textContent = stats.totalSentEvents || 0;
+      setSyncStatus(
+        stats.syncState || 'idle',
+        stats.queuedEvents || 0,
+        stats.queuedBatches || 0,
+        stats.retryAttempt || 0,
+        stats.lastSyncError || null
+      );
+      renderPreview(
+        settings.transcriptPreview?.recentLines || [],
+        settings.transcriptPreview?.draft || null
+      );
+
       showState('capturing');
       startDurationTimer();
       startStatsPolling();
     } else {
+      resetCapturePanels();
       showState('ready');
     }
   } else {
@@ -276,21 +414,65 @@ function stopStatsPolling() {
 }
 
 async function updateStats() {
-  const stats = await chrome.storage.local.get(['captionStats']);
-  if (stats.captionStats) {
-    els.eventCount.textContent = stats.captionStats.totalEvents || 0;
-    els.sentCount.textContent = stats.captionStats.totalSentEvents || 0;
+  const stored = await chrome.storage.local.get(['captionStats', 'transcriptPreview']);
+  if (stored.captionStats) {
+    els.eventCount.textContent = stored.captionStats.totalEvents || 0;
+    els.sentCount.textContent = stored.captionStats.totalSentEvents || 0;
+    setSyncStatus(
+      stored.captionStats.syncState || 'idle',
+      stored.captionStats.queuedEvents || 0,
+      stored.captionStats.queuedBatches || 0,
+      stored.captionStats.retryAttempt || 0,
+      stored.captionStats.lastSyncError || null
+    );
+  }
+
+  if (stored.transcriptPreview) {
+    renderPreview(
+      stored.transcriptPreview.recentLines || [],
+      stored.transcriptPreview.draft || null
+    );
   }
 
   // Also get status from background
   const bgStatus = await sendToBackground('POPUP_GET_STATUS');
   if (bgStatus) {
     els.sentCount.textContent = bgStatus.totalSentEvents || 0;
+    setSyncStatus(
+      bgStatus.syncState || 'idle',
+      bgStatus.queuedEvents || 0,
+      bgStatus.queuedBatches || 0,
+      bgStatus.retryAttempt || 0,
+      bgStatus.lastSyncError || null
+    );
+    renderPreview(bgStatus.recentPreviewLines || [], bgStatus.currentDraftPreview || null);
     if (bgStatus.currentMeetingId) {
       els.meetingIdDisplay.textContent = shortenId(bgStatus.currentMeetingId);
     }
   }
 }
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+
+  if (changes.captionStats?.newValue) {
+    const nextStats = changes.captionStats.newValue;
+    els.eventCount.textContent = nextStats.totalEvents || 0;
+    els.sentCount.textContent = nextStats.totalSentEvents || 0;
+    setSyncStatus(
+      nextStats.syncState || 'idle',
+      nextStats.queuedEvents || 0,
+      nextStats.queuedBatches || 0,
+      nextStats.retryAttempt || 0,
+      nextStats.lastSyncError || null
+    );
+  }
+
+  if (changes.transcriptPreview?.newValue) {
+    const preview = changes.transcriptPreview.newValue;
+    renderPreview(preview.recentLines || [], preview.draft || null);
+  }
+});
 
 /* ───────────────────────────────────────────
    Event Handlers
@@ -315,6 +497,8 @@ els.startBtn.addEventListener('click', async () => {
   if (result?.success) {
     captureStartTime = Date.now();
     els.meetingIdDisplay.textContent = shortenId(result.meetingId);
+    setSyncStatus('queued', 0, 0, 0, null);
+    renderPreview([], null);
 
     // Show project badge if attached to project
     if (selectedProjectId) {
@@ -356,6 +540,7 @@ els.stopBtn.addEventListener('click', async () => {
   });
 
   if (result?.success) {
+    resetCapturePanels();
     showState('ready');
   }
 

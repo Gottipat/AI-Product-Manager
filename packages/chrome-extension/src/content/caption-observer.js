@@ -30,10 +30,12 @@ let sequenceNumber = 0;
 let captionBuffer = [];
 let currentDraft = null;
 let lastCommittedCaption = null;
+let recentPreviewLines = [];
 
 const BUFFER_FLUSH_MS = 4000;
 const DRAFT_IDLE_MS = 1400;
 const MAX_BATCH_SIZE = 20;
+const MAX_PREVIEW_LINES = 6;
 
 /* ───────────────────────────────────────────
    Helpers
@@ -86,6 +88,45 @@ function findCaptionRow(startNode, container) {
   return null;
 }
 
+function extractCaptionFromRow(row) {
+  const speakerElement = row.querySelector(SPEAKER_SELECTOR);
+  const speaker = normalizeSpeakerName(speakerElement?.textContent?.trim() || 'Unknown');
+  const text = collectTextFromNode(row);
+
+  if (!text) {
+    return null;
+  }
+
+  return {
+    speaker,
+    speakerId: buildSpeakerId(speaker),
+    text,
+  };
+}
+
+function collectCaptionRows(container) {
+  const rows = [];
+  const seenRows = new Set();
+  const speakerElements = Array.from(container.querySelectorAll(SPEAKER_SELECTOR)).filter(
+    (element) => element.textContent?.trim()
+  );
+
+  for (const speakerElement of speakerElements) {
+    const row = findCaptionRow(speakerElement, container);
+    if (!row || seenRows.has(row)) {
+      continue;
+    }
+
+    seenRows.add(row);
+    const snapshot = extractCaptionFromRow(row);
+    if (snapshot) {
+      rows.push(snapshot);
+    }
+  }
+
+  return rows;
+}
+
 function collectTextFromNode(node) {
   if (!node) return '';
 
@@ -100,23 +141,9 @@ function collectTextFromNode(node) {
 }
 
 function extractLatestCaption(container) {
-  const speakerElements = Array.from(container.querySelectorAll(SPEAKER_SELECTOR)).filter(
-    (element) => element.textContent?.trim()
-  );
-
-  if (speakerElements.length > 0) {
-    const latestSpeakerElement = speakerElements[speakerElements.length - 1];
-    const row = findCaptionRow(latestSpeakerElement, container);
-    const speaker = normalizeSpeakerName(latestSpeakerElement.textContent?.trim() || '');
-    const text = collectTextFromNode(row || container);
-
-    if (text) {
-      return {
-        speaker,
-        speakerId: buildSpeakerId(speaker),
-        text,
-      };
-    }
+  const captionRows = collectCaptionRows(container);
+  if (captionRows.length > 0) {
+    return captionRows[captionRows.length - 1];
   }
 
   const fallbackText = collectTextFromNode(container);
@@ -148,6 +175,22 @@ function notifyStats() {
   });
 }
 
+function notifyPreview(finalEvent = null) {
+  chrome.runtime.sendMessage({
+    type: 'TRANSCRIPT_PREVIEW',
+    data: {
+      recentLines: recentPreviewLines,
+      finalEvent,
+      draft: currentDraft
+        ? {
+            speaker: currentDraft.speaker,
+            content: currentDraft.text,
+          }
+        : null,
+    },
+  });
+}
+
 function flushBuffer() {
   if (captionBuffer.length === 0) return;
 
@@ -172,6 +215,7 @@ function finalizeDraft() {
   ) {
     currentDraft = null;
     notifyStats();
+    notifyPreview();
     return;
   }
 
@@ -187,11 +231,18 @@ function finalizeDraft() {
   };
 
   captionBuffer.push(event);
+  recentPreviewLines.push({
+    speaker: event.speaker,
+    content: event.content,
+    capturedAt: event.capturedAt,
+  });
+  recentPreviewLines = recentPreviewLines.slice(-MAX_PREVIEW_LINES);
   lastCommittedCaption = {
     speaker: currentDraft.speaker,
     text: currentDraft.text,
   };
   currentDraft = null;
+  notifyPreview(event);
 
   if (captionBuffer.length >= MAX_BATCH_SIZE) {
     flushBuffer();
@@ -218,6 +269,7 @@ function startDraft(snapshot) {
   };
   resetDraftTimer();
   notifyStats();
+  notifyPreview();
 }
 
 function handleObservedCaption(snapshot) {
@@ -241,6 +293,7 @@ function handleObservedCaption(snapshot) {
       };
       resetDraftTimer();
       notifyStats();
+      notifyPreview();
       return;
     }
 
@@ -378,9 +431,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       captionBuffer = [];
       currentDraft = null;
       lastCommittedCaption = null;
+      recentPreviewLines = [];
 
       tryEnableCaptions();
       setTimeout(() => startObserving(), 2000);
+
+      notifyPreview();
 
       sendResponse({ success: true });
       break;
