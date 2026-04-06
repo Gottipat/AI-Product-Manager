@@ -6,12 +6,18 @@
 import { meetingRepository } from '../db/repositories/meeting.repository.js';
 import { meetingItemsRepository } from '../db/repositories/meetingItems.repository.js';
 import { transcriptRepository } from '../db/repositories/transcript.repository.js';
+import {
+  dedupeContextualItems,
+  reconcileMeetingItems,
+  type ContextualActionItem,
+} from '../lib/productManager.js';
 import { formatTranscriptForAI, getTranscriptSpeakerStats } from '../lib/transcript.js';
 import {
   openaiService,
   type ActionItem,
   type MeetingAnalysisContext,
 } from '../services/openai.service.js';
+import { productManagerService } from '../services/productManager.service.js';
 
 // ============================================================================
 // TYPES
@@ -55,14 +61,32 @@ export class ActionItemsPipeline {
         throw new Error('No transcript available for this meeting');
       }
 
-      const context = this.buildContext(meetingId, meeting, transcriptEvents);
+      const projectContext = await productManagerService.buildProjectContext({
+        meetingId,
+        projectId: meeting?.projectId ?? null,
+        transcriptText,
+        meetingStartTime: meeting?.startTime ?? null,
+      });
+
+      const baseContext = this.buildContext(meetingId, meeting, transcriptEvents, projectContext);
 
       // Extract items via OpenAI
-      const items = await openaiService.extractActionItems(transcriptText, context);
+      const extractedItems = dedupeContextualItems([
+        ...(await openaiService.extractActionItems(transcriptText, baseContext)),
+        ...projectContext.accountabilityAlerts,
+      ]);
+      const reconciliation = reconcileMeetingItems({
+        currentItems: extractedItems,
+        openItems: projectContext.openItems,
+        transcriptText,
+        referenceDate: meeting?.startTime ?? new Date(),
+      });
+      const items = reconciliation.contextualItems;
 
       // Save to database
       await meetingItemsRepository.deleteGeneratedByMeeting(meetingId, 'action_items_pipeline');
-      const savedItems = await this.saveItems(meetingId, items);
+      await this.applyPriorItemUpdates(meetingId, reconciliation);
+      const savedItems = await this.saveItems(meetingId, meeting?.projectId ?? null, items);
 
       return {
         success: true,
@@ -91,7 +115,9 @@ export class ActionItemsPipeline {
   private buildContext(
     meetingId: string,
     meeting: Awaited<ReturnType<typeof meetingRepository.findById>>,
-    transcriptEvents: Awaited<ReturnType<typeof transcriptRepository.findByMeetingId>>
+    transcriptEvents: Awaited<ReturnType<typeof transcriptRepository.findByMeetingId>>,
+    projectContext: Awaited<ReturnType<typeof productManagerService.buildProjectContext>>,
+    reconciliation?: ReturnType<typeof reconcileMeetingItems>
   ): MeetingAnalysisContext {
     return {
       meetingId,
@@ -113,17 +139,30 @@ export class ActionItemsPipeline {
         isBot: participant.isBot,
       })),
       transcript: getTranscriptSpeakerStats(transcriptEvents),
+      recentMeetingSummaries: projectContext.recentMeetingSummaries,
+      openItemsSummary: projectContext.openItemsSummary,
+      accountabilityAlerts: projectContext.accountabilityAlerts.map((item) => item.title),
+      accountabilityOwners: projectContext.accountabilityOwners,
+      resolvedItemsSummary: reconciliation?.resolvedItemsSummary,
+      readinessSignals: reconciliation?.readinessSignals ?? projectContext.readinessSignals,
+      projectPriority: reconciliation?.projectPriority ?? projectContext.projectPriority,
+      projectContextSummary: projectContext.contextSummary,
     };
   }
 
   /**
    * Save extracted items to database
    */
-  private async saveItems(meetingId: string, items: ActionItem[]): Promise<{ id: string }[]> {
+  private async saveItems(
+    meetingId: string,
+    projectId: string | null,
+    items: ContextualActionItem[]
+  ): Promise<{ id: string }[]> {
     if (items.length === 0) return [];
 
     const records = items.map((item) => ({
       meetingId,
+      projectId,
       itemType: item.itemType,
       title: item.title,
       description: item.description,
@@ -138,10 +177,34 @@ export class ActionItemsPipeline {
         generatedBy: 'action_items_pipeline',
         sourceQuote: item.sourceQuote,
         context: item.context,
+        accountability: {
+          ownerLabel: item.assignee ?? null,
+          accountabilityType: item.accountabilityType ?? 'unknown',
+          accountableTeam:
+            item.accountabilityType === 'team'
+              ? (item.accountableTeam ?? item.assignee ?? null)
+              : (item.accountableTeam ?? null),
+        },
+        ...(item.metadata ?? {}),
       },
     }));
 
     return await meetingItemsRepository.createBatch(records);
+  }
+
+  private async applyPriorItemUpdates(
+    meetingId: string,
+    reconciliation: ReturnType<typeof reconcileMeetingItems>
+  ): Promise<void> {
+    for (const update of reconciliation.priorItemUpdates) {
+      await meetingItemsRepository.syncStatusFromMeeting({
+        id: update.itemId,
+        meetingId,
+        status: update.newStatus,
+        updateDescription: update.updateDescription,
+        updatedBy: 'ai_product_manager',
+      });
+    }
   }
 
   /**

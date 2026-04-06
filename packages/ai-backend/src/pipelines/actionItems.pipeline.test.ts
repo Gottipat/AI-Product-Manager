@@ -10,6 +10,7 @@ vi.mock('../db/repositories/meetingItems.repository.js', () => ({
   meetingItemsRepository: {
     createBatch: vi.fn(),
     deleteGeneratedByMeeting: vi.fn(),
+    syncStatusFromMeeting: vi.fn(),
   },
 }));
 
@@ -26,6 +27,20 @@ vi.mock('../db/repositories/meeting.repository.js', () => ({
 vi.mock('../db/repositories/transcript.repository.js', () => ({
   transcriptRepository: {
     findByMeetingId: vi.fn(),
+  },
+}));
+
+vi.mock('../services/productManager.service.js', () => ({
+  productManagerService: {
+    buildProjectContext: vi.fn().mockResolvedValue({
+      openItems: [],
+      recentMeetingSummaries: [],
+      openItemsSummary: [],
+      accountabilityAlerts: [],
+      readinessSignals: [],
+      projectPriority: 'low',
+      contextSummary: 'No project context.',
+    }),
   },
 }));
 

@@ -16,6 +16,9 @@
     "docker:up": "docker compose --env-file .env.docker up --build",
     "docker:down": "docker compose --env-file .env.docker down",
     "docker:bot": "docker compose --env-file .env.docker --profile bot up --build",
+    "benchmark:longitudinal": "pnpm --filter @meeting-ai/ai-backend exec tsx ../../benchmark/run-longitudinal-eval.ts",
+    "benchmark:compare": "pnpm --filter @meeting-ai/ai-backend exec tsx ../../benchmark/run-longitudinal-eval.ts --system all",
+    "benchmark:typecheck": "tsc --noEmit -p benchmark/tsconfig.json",
     "pre-push": "pnpm run lint && pnpm run format:check && pnpm run build",
     "prepare": "husky",
     "clean": "pnpm -r clean && rm -rf node_modules"

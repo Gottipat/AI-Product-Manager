@@ -4,20 +4,46 @@
 
 ## Quick Links
 
-| Doc                                 | Purpose                             |
-| ----------------------------------- | ----------------------------------- |
-| [Getting Started](#getting-started) | Set up your development environment |
-| [Architecture](./ARCHITECTURE.md)   | System design and package structure |
-| [API Contracts](./API_CONTRACTS.md) | API endpoints and data formats      |
-| [Database](./database/OVERVIEW.md)  | Schema, migrations, and operations  |
-| [Testing](./TESTING.md)             | Test conventions and running tests  |
-| [Contributing](./CONTRIBUTING.md)   | Code style and PR process           |
-| [Developer Tooling](./TOOLING.md)   | Pre-push hooks, linting, formatting |
-| [Docker Run](./DOCKER_RUN.md)       | Team Docker setup and run guide     |
+| Doc                                         | Purpose                                   |
+| ------------------------------------------- | ----------------------------------------- |
+| [Getting Started](#getting-started)         | Set up your development environment       |
+| [Architecture](./ARCHITECTURE.md)           | System design and package structure       |
+| [API Contracts](./API_CONTRACTS.md)         | API endpoints and data formats            |
+| [Database](./database/OVERVIEW.md)          | Schema, migrations, and operations        |
+| [Testing](./TESTING.md)                     | Test conventions and running tests        |
+| [Contributing](./CONTRIBUTING.md)           | Code style and PR process                 |
+| [Developer Tooling](./TOOLING.md)           | Pre-push hooks, linting, formatting       |
+| [Docker Run](./DOCKER_RUN.md)               | Team Docker setup and run guide           |
+| [Dataset Spec](./DATASET_SPEC.md)           | Longitudinal benchmark design             |
+| [Eval Rubric](./EVAL_RUBRIC.md)             | PM-grade system evaluation                |
+| [Paper Outline](./PAPER_OUTLINE.md)         | Research paper structure                  |
+| [Benchmark Harness](../benchmark/README.md) | Scenario runner for sequential evaluation |
 
 ---
 
 ## Getting Started
+
+### Recommended: Docker
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build -d
+```
+
+Set at least:
+
+```env
+OPENAI_API_KEY=sk-your-openai-key
+```
+
+Then open:
+
+- Web: `http://localhost:3001`
+- API health: `http://localhost:3002/api/v1/health`
+
+See [DOCKER_RUN.md](./DOCKER_RUN.md) for the full teammate workflow.
+
+### Local Development
 
 ```bash
 # 1. Clone and install
@@ -34,6 +60,22 @@ pnpm --filter @meeting-ai/ai-backend db:push
 
 # 4. Run development servers
 pnpm dev
+```
+
+### Quick Validation Commands
+
+```bash
+# Full workspace tests
+pnpm test
+
+# Full workspace typecheck
+pnpm typecheck
+
+# Benchmark typecheck
+pnpm benchmark:typecheck
+
+# Compare the stateful system against transcript-only baseline
+pnpm benchmark:compare
 ```
 
 ---
@@ -57,6 +99,10 @@ pnpm dev
 
 - [AI_PIPELINE.md](./AI_PIPELINE.md) - OpenAI integration, MoM generation, RAG search
 - [ENVIRONMENT.md](./ENVIRONMENT.md) - Environment variables and configuration
+- [AI_PRODUCT_MANAGER_RESEARCH_PLAN.md](./AI_PRODUCT_MANAGER_RESEARCH_PLAN.md) - Company, product, and research thesis
+- [DATASET_SPEC.md](./DATASET_SPEC.md) - Dataset schema for recurring-meeting evaluation
+- [EVAL_RUBRIC.md](./EVAL_RUBRIC.md) - Automatic and human PM evaluation framework
+- [PAPER_OUTLINE.md](./PAPER_OUTLINE.md) - Draft outline for the first research paper
 
 ### Development
 
@@ -64,6 +110,7 @@ pnpm dev
 - [TOOLING.md](./TOOLING.md) - Git hooks, linting, formatting, CI/CD
 - [CONTRIBUTING.md](./CONTRIBUTING.md) - Branch strategy, code style, PR process
 - [DOCKER_RUN.md](./DOCKER_RUN.md) - Full Docker Compose workflow for teammates
+- [../benchmark/README.md](../benchmark/README.md) - Sequential benchmark harness and scenario runner
 
 ---
 

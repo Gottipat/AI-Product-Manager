@@ -13,6 +13,7 @@ vi.mock('../db/repositories/meetingItems.repository.js', () => ({
     findByMeetingId: vi.fn(),
     findByType: vi.fn(),
     findById: vi.fn(),
+    update: vi.fn(),
     updateStatus: vi.fn(),
     getProgressHistory: vi.fn(),
     addTag: vi.fn(),
@@ -130,6 +131,38 @@ describe('Meeting Items Routes', () => {
       (meetingItemsRepository.updateStatus as Mock).mockResolvedValue(null);
 
       const result = await meetingItemsRepository.updateStatus('non-existent', 'completed');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('PATCH /api/v1/items/:id', () => {
+    it('should update editable item fields', async () => {
+      (meetingItemsRepository.update as Mock).mockResolvedValue({
+        id: 'item-123',
+        title: 'Updated task title',
+        assignee: 'Kumar',
+        dueDate: '2026-04-10',
+        priority: 'high',
+      });
+
+      const result = await meetingItemsRepository.update('item-123', {
+        title: 'Updated task title',
+        assignee: 'Kumar',
+        dueDate: '2026-04-10',
+        priority: 'high',
+      });
+
+      expect(result?.title).toBe('Updated task title');
+      expect(result?.priority).toBe('high');
+    });
+
+    it('should return null when updating a missing item', async () => {
+      (meetingItemsRepository.update as Mock).mockResolvedValue(null);
+
+      const result = await meetingItemsRepository.update('missing-item', {
+        title: 'Does not exist',
+      });
 
       expect(result).toBeNull();
     });

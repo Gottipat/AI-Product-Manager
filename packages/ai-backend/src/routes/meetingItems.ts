@@ -45,6 +45,15 @@ interface UpdateStatusBody {
   updatedBy?: string;
 }
 
+interface UpdateItemBody {
+  title?: string;
+  description?: string | null;
+  assignee?: string | null;
+  assigneeEmail?: string | null;
+  dueDate?: string | null;
+  priority?: 'low' | 'medium' | 'high' | 'critical' | null;
+}
+
 export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void> {
   /**
    * POST /api/v1/meetings/:id/items
@@ -153,6 +162,44 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
     }
     return { item };
   });
+
+  /**
+   * PATCH /api/v1/items/:id
+   * Update editable item fields
+   */
+  fastify.patch<{ Params: { id: string }; Body: UpdateItemBody }>(
+    '/api/v1/items/:id',
+    async (request, reply) => {
+      const { title, description, assignee, assigneeEmail, dueDate, priority } = request.body;
+
+      if (
+        title === undefined &&
+        description === undefined &&
+        assignee === undefined &&
+        assigneeEmail === undefined &&
+        dueDate === undefined &&
+        priority === undefined
+      ) {
+        return reply.status(400).send({ error: 'At least one editable field is required' });
+      }
+
+      const updateData: UpdateItemBody = {};
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (assignee !== undefined) updateData.assignee = assignee;
+      if (assigneeEmail !== undefined) updateData.assigneeEmail = assigneeEmail;
+      if (dueDate !== undefined) updateData.dueDate = dueDate;
+      if (priority !== undefined) updateData.priority = priority;
+
+      const item = await meetingItemsRepository.update(request.params.id, updateData);
+
+      if (!item) {
+        return reply.status(404).send({ error: 'Item not found' });
+      }
+
+      return { item };
+    }
+  );
 
   /**
    * PATCH /api/v1/items/:id/status

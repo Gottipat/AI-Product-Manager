@@ -69,6 +69,42 @@ export class MeetingItemsRepository {
   }
 
   /**
+   * Update editable item fields.
+   */
+  async update(
+    id: string,
+    data: Partial<
+      Pick<
+        MeetingItem,
+        'title' | 'description' | 'assignee' | 'assigneeEmail' | 'dueDate' | 'priority'
+      >
+    >
+  ) {
+    const existing = await db.query.meetingItems.findFirst({
+      where: eq(meetingItems.id, id),
+    });
+    if (!existing) return null;
+
+    const updateData: Partial<typeof meetingItems.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.assignee !== undefined) updateData.assignee = data.assignee;
+    if (data.assigneeEmail !== undefined) updateData.assigneeEmail = data.assigneeEmail;
+    if (data.dueDate !== undefined) updateData.dueDate = data.dueDate;
+    if (data.priority !== undefined) updateData.priority = data.priority;
+
+    const result = await db
+      .update(meetingItems)
+      .set(updateData)
+      .where(eq(meetingItems.id, id))
+      .returning();
+    return result[0];
+  }
+
+  /**
    * Find all items for a meeting
    */
   async findByMeetingId(meetingId: string) {
@@ -77,6 +113,28 @@ export class MeetingItemsRepository {
       .from(meetingItems)
       .where(eq(meetingItems.meetingId, meetingId))
       .orderBy(desc(meetingItems.createdAt));
+  }
+
+  /**
+   * Find open items for a project, optionally excluding the current meeting.
+   */
+  async findOpenByProjectId(projectId: string, options: { excludeMeetingId?: string } = {}) {
+    const { excludeMeetingId } = options;
+    const conditions = [
+      eq(meetingItems.projectId, projectId),
+      not(eq(meetingItems.status, 'completed')),
+      not(eq(meetingItems.status, 'cancelled')),
+    ];
+
+    if (excludeMeetingId) {
+      conditions.push(not(eq(meetingItems.meetingId, excludeMeetingId)));
+    }
+
+    return db
+      .select()
+      .from(meetingItems)
+      .where(and(...conditions))
+      .orderBy(desc(meetingItems.updatedAt), desc(meetingItems.createdAt));
   }
 
   /**
@@ -164,6 +222,70 @@ export class MeetingItemsRepository {
         newStatus: status,
         updatedBy,
       });
+    }
+
+    const result = await db
+      .update(meetingItems)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(meetingItems.id, id))
+      .returning();
+    return result[0];
+  }
+
+  /**
+   * Sync item status based on evidence from a later meeting without duplicating progress updates.
+   */
+  async syncStatusFromMeeting(args: {
+    id: string;
+    meetingId: string;
+    status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'deferred' | 'cancelled';
+    updateDescription?: string;
+    updatedBy?: string;
+  }) {
+    const { id, meetingId, status, updateDescription, updatedBy } = args;
+    const item = await db.query.meetingItems.findFirst({
+      where: eq(meetingItems.id, id),
+    });
+    if (!item) return null;
+
+    const existingProgress = await db.query.progressUpdates.findFirst({
+      where: and(eq(progressUpdates.meetingItemId, id), eq(progressUpdates.meetingId, meetingId)),
+    });
+
+    if (existingProgress) {
+      if (
+        existingProgress.newStatus !== status ||
+        existingProgress.updateDescription !== updateDescription ||
+        existingProgress.updatedBy !== updatedBy
+      ) {
+        await db
+          .update(progressUpdates)
+          .set({
+            previousStatus: item.status ?? undefined,
+            newStatus: status,
+            updateDescription,
+            updatedBy,
+          })
+          .where(eq(progressUpdates.id, existingProgress.id));
+      }
+    } else if (item.status !== status || updateDescription) {
+      await this.addProgressUpdate({
+        meetingItemId: id,
+        meetingId,
+        previousStatus: item.status ?? undefined,
+        newStatus: status,
+        updateDescription,
+        updatedBy,
+      });
+    }
+
+    if (item.status === status) {
+      const result = await db
+        .update(meetingItems)
+        .set({ updatedAt: new Date() })
+        .where(eq(meetingItems.id, id))
+        .returning();
+      return result[0];
     }
 
     const result = await db

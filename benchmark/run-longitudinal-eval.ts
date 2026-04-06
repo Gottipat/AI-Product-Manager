@@ -1,0 +1,972 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
+type AnalysisMode = 'general' | 'product_manager';
+type BenchmarkSystemId = 'current_system' | 'transcript_only';
+type BenchmarkSystemSelection = BenchmarkSystemId | 'all';
+
+interface MeetingExpectations {
+  mustIncludeItemTitles?: string[];
+  mustNotIncludeItemTitles?: string[];
+  mustIncludeSummaryPhrases?: string[];
+}
+
+interface ScenarioMeeting {
+  sequenceNumber: number;
+  slug: string;
+  title: string;
+  transcriptPath: string;
+  analysisMode?: AnalysisMode;
+  contextNote?: string;
+  expectations?: MeetingExpectations;
+}
+
+interface FinalProjectExpectations {
+  mustHaveItemStatuses?: Array<{
+    titleLike: string;
+    status: string;
+  }>;
+  mustNotHaveOpenTitles?: string[];
+}
+
+interface BenchmarkScenario {
+  schemaVersion: string;
+  scenarioId: string;
+  displayName: string;
+  project: {
+    name: string;
+    description?: string;
+    isRecurring?: boolean;
+  };
+  defaultAnalysisMode?: AnalysisMode;
+  defaultContextNote?: string;
+  meetings: ScenarioMeeting[];
+  finalProjectExpectations?: FinalProjectExpectations;
+}
+
+interface ExpectationResult {
+  category:
+    | 'meeting_item_presence'
+    | 'meeting_item_absence'
+    | 'meeting_summary_phrase'
+    | 'project_item_status'
+    | 'project_open_absence';
+  target: string;
+  passed: boolean;
+  details?: string;
+}
+
+interface BenchmarkMeetingItemSnapshot {
+  itemType: string;
+  title: string;
+  status: string | null;
+  assignee: string | null;
+  priority: string | null;
+}
+
+interface BenchmarkMeetingReport {
+  sequenceNumber: number;
+  slug: string;
+  title: string;
+  meetingId?: string | undefined;
+  requestStatus: number;
+  transcriptEventCount?: number | undefined;
+  momGeneration?:
+    | {
+        success?: boolean | undefined;
+        momId?: string | null | undefined;
+        itemsCreated?: number | undefined;
+        highlightsCreated?: number | undefined;
+        processingTimeMs?: number | undefined;
+        error?: string | undefined;
+      }
+    | undefined;
+  executiveSummary?: string | undefined;
+  detailedSummary?: string | undefined;
+  itemSnapshot: BenchmarkMeetingItemSnapshot[];
+  expectationResults: ExpectationResult[];
+}
+
+interface ProjectItemSnapshot {
+  id: string;
+  meetingId: string;
+  itemType: string;
+  title: string;
+  status: string | null;
+  assignee: string | null;
+  priority: string | null;
+}
+
+interface BenchmarkSystemReport {
+  systemId: BenchmarkSystemId;
+  systemLabel: string;
+  systemMode: 'stateful_api' | 'stateless_transcript_only';
+  runContext: {
+    strategySummary: string;
+    projectId?: string | undefined;
+    projectName?: string | undefined;
+  };
+  summary: {
+    meetingsProcessed: number;
+    checksPassed: number;
+    checksFailed: number;
+  };
+  meetings: BenchmarkMeetingReport[];
+  finalProjectChecks: ExpectationResult[];
+  finalProjectSnapshot?:
+    | {
+        project?: unknown | undefined;
+        meetings?: unknown[] | undefined;
+        items?: ProjectItemSnapshot[] | undefined;
+        stats?: unknown | undefined;
+      }
+    | undefined;
+}
+
+interface BenchmarkComparison {
+  ranking: Array<{
+    systemId: BenchmarkSystemId;
+    systemLabel: string;
+    checksPassed: number;
+    checksFailed: number;
+    passRate: number;
+  }>;
+  perMeeting: Array<{
+    sequenceNumber: number;
+    slug: string;
+    scores: Array<{
+      systemId: BenchmarkSystemId;
+      checksPassed: number;
+      checksFailed: number;
+    }>;
+  }>;
+  deltas: Array<{
+    leftSystemId: BenchmarkSystemId;
+    rightSystemId: BenchmarkSystemId;
+    checksPassedDelta: number;
+    checksFailedDelta: number;
+  }>;
+}
+
+interface BenchmarkReport {
+  scenario: {
+    scenarioId: string;
+    displayName: string;
+    schemaVersion: string;
+    sourcePath: string;
+  };
+  run: {
+    startedAt: string;
+    finishedAt: string;
+    apiBaseUrl: string;
+    requestedSystems: BenchmarkSystemId[];
+    reportPath: string;
+    health?: unknown | undefined;
+  };
+  summary: {
+    systemsRun: number;
+    totalMeetingsProcessed: number;
+    checksPassed: number;
+    checksFailed: number;
+    bestSystemId?: BenchmarkSystemId | undefined;
+  };
+  systems: BenchmarkSystemReport[];
+  comparison?: BenchmarkComparison | undefined;
+}
+
+interface ApiResponse<T> {
+  status: number;
+  payload: T;
+}
+
+interface UploadedMeetingResponse {
+  success: boolean;
+  meetingId: string;
+  meetingStartTime: string;
+  transcriptEventsCreated: number;
+  momGeneration: {
+    success: boolean;
+    momId: string | null;
+    highlightsCreated: number;
+    itemsCreated: number;
+    processingTimeMs: number;
+    error?: string | undefined;
+  };
+}
+
+interface MeetingMomResponse {
+  mom?:
+    | {
+        id?: string | undefined;
+        executiveSummary?: string | null | undefined;
+        detailedSummary?: string | null | undefined;
+      }
+    | undefined;
+}
+
+interface MeetingItemsResponse {
+  items?:
+    | Array<{
+        id: string;
+        meetingId: string;
+        itemType: string;
+        title: string;
+        status: string | null;
+        assignee: string | null;
+        priority: string | null;
+      }>
+    | undefined;
+}
+
+interface ProjectStateResponse {
+  project?: unknown | undefined;
+  meetings?: unknown[] | undefined;
+  items?: ProjectItemSnapshot[] | undefined;
+  stats?: unknown | undefined;
+}
+
+interface TranscriptOnlyGeneratedItem {
+  itemType: string;
+  title: string;
+  assignee?: string | null | undefined;
+  priority?: string | null | undefined;
+}
+
+interface TranscriptOnlyBenchmarkResponse {
+  success: boolean;
+  analysisId?: string | undefined;
+  meetingStartTime?: string | undefined;
+  transcriptEventsCreated?: number | undefined;
+  processingTimeMs?: number | undefined;
+  extractedItems?: TranscriptOnlyGeneratedItem[] | undefined;
+  mom?:
+    | {
+        executiveSummary?: string | null | undefined;
+        detailedSummary?: string | null | undefined;
+        highlights?: Array<unknown> | undefined;
+        items?: TranscriptOnlyGeneratedItem[] | undefined;
+      }
+    | undefined;
+  error?: string | undefined;
+}
+
+const repoRoot = process.cwd().endsWith(path.join('packages', 'ai-backend'))
+  ? path.resolve(process.cwd(), '..', '..')
+  : process.cwd();
+
+const DEFAULT_API_BASE_URL = process.env.BENCHMARK_API_BASE_URL ?? 'http://127.0.0.1:3002/api/v1';
+const DEFAULT_REPORT_DIR = process.env.BENCHMARK_REPORT_DIR ?? 'benchmark/reports';
+const DEFAULT_SCENARIO_PATH = 'benchmark/scenarios/onboarding_growth_initiative/scenario.json';
+
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function matchesTitle(candidate: string, target: string): boolean {
+  const left = normalizeText(candidate);
+  const right = normalizeText(target);
+  return left.includes(right) || right.includes(left);
+}
+
+function parseSystemSelection(value: string): BenchmarkSystemSelection {
+  if (value === 'all' || value === 'current_system' || value === 'transcript_only') {
+    return value;
+  }
+
+  throw new Error(`Invalid --system value: ${value}`);
+}
+
+function parseArgs(argv: string[]) {
+  const args = [...argv];
+  let scenarioPath = DEFAULT_SCENARIO_PATH;
+  let apiBaseUrl = DEFAULT_API_BASE_URL;
+  let system = 'current_system' as BenchmarkSystemSelection;
+
+  while (args.length > 0) {
+    const current = args.shift();
+    if (!current) continue;
+    if (current === '--') continue;
+
+    if (current === '--base-url') {
+      const value = args.shift();
+      if (!value) {
+        throw new Error('Missing value for --base-url');
+      }
+      apiBaseUrl = value;
+      continue;
+    }
+
+    if (current === '--system') {
+      const value = args.shift();
+      if (!value) {
+        throw new Error('Missing value for --system');
+      }
+      system = parseSystemSelection(value);
+      continue;
+    }
+
+    if (!current.startsWith('--')) {
+      scenarioPath = current;
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${current}`);
+  }
+
+  return { scenarioPath, apiBaseUrl, system };
+}
+
+async function api<T>(args: {
+  baseUrl: string;
+  method: string;
+  route: string;
+  body?: unknown;
+  timeoutMs?: number;
+}): Promise<ApiResponse<T>> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), args.timeoutMs ?? 420_000);
+
+  try {
+    const requestInit: RequestInit = {
+      method: args.method,
+      headers: {
+        'content-type': 'application/json',
+      },
+      signal: controller.signal,
+    };
+    if (args.body !== undefined) {
+      requestInit.body = JSON.stringify(args.body);
+    }
+
+    const response = await fetch(`${args.baseUrl}${args.route}`, requestInit);
+    const text = await response.text();
+    const payload = text ? (JSON.parse(text) as T) : ({} as T);
+    return { status: response.status, payload };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function loadScenario(scenarioPath: string): Promise<BenchmarkScenario> {
+  const raw = await readFile(scenarioPath, 'utf8');
+  const parsed = JSON.parse(raw) as BenchmarkScenario;
+
+  if (!parsed.scenarioId || !parsed.displayName || !Array.isArray(parsed.meetings)) {
+    throw new Error(`Invalid scenario file: ${scenarioPath}`);
+  }
+
+  return parsed;
+}
+
+function collectMeetingExpectationResults(args: {
+  expectations: MeetingExpectations | undefined;
+  executiveSummary: string | undefined;
+  detailedSummary: string | undefined;
+  items: Array<{ title: string }>;
+}): ExpectationResult[] {
+  const { expectations, executiveSummary, detailedSummary, items } = args;
+  if (!expectations) return [];
+
+  const results: ExpectationResult[] = [];
+  const allTitles = items.map((item) => item.title);
+  const summaryBody = [executiveSummary ?? '', detailedSummary ?? ''].join('\n');
+
+  for (const target of expectations.mustIncludeItemTitles ?? []) {
+    const passed = allTitles.some((candidate) => matchesTitle(candidate, target));
+    results.push({
+      category: 'meeting_item_presence',
+      target,
+      passed,
+      details: passed
+        ? 'Matched at least one meeting item title.'
+        : 'No matching meeting item title found.',
+    });
+  }
+
+  for (const target of expectations.mustNotIncludeItemTitles ?? []) {
+    const passed = !allTitles.some((candidate) => matchesTitle(candidate, target));
+    results.push({
+      category: 'meeting_item_absence',
+      target,
+      passed,
+      details: passed
+        ? 'No forbidden meeting item title found.'
+        : 'Found a forbidden meeting item title.',
+    });
+  }
+
+  for (const target of expectations.mustIncludeSummaryPhrases ?? []) {
+    const passed = normalizeText(summaryBody).includes(normalizeText(target));
+    results.push({
+      category: 'meeting_summary_phrase',
+      target,
+      passed,
+      details: passed
+        ? 'Phrase found in executive or detailed summary.'
+        : 'Phrase missing from meeting summary.',
+    });
+  }
+
+  return results;
+}
+
+function collectFinalProjectChecks(args: {
+  expectations: FinalProjectExpectations | undefined;
+  items: ProjectItemSnapshot[];
+}): ExpectationResult[] {
+  const { expectations, items } = args;
+  if (!expectations) return [];
+
+  const results: ExpectationResult[] = [];
+
+  for (const expected of expectations.mustHaveItemStatuses ?? []) {
+    const matchingItems = items.filter((item) => matchesTitle(item.title, expected.titleLike));
+    const passingItem = matchingItems.find((item) => item.status === expected.status);
+    const passed = Boolean(passingItem);
+    results.push({
+      category: 'project_item_status',
+      target: `${expected.titleLike} => ${expected.status}`,
+      passed,
+      details: passingItem
+        ? `Found status ${passingItem.status ?? 'null'} for "${passingItem.title}".`
+        : matchingItems.length > 0
+          ? `Matching items found, but statuses were: ${matchingItems
+              .map((item) => `${item.title}=${item.status ?? 'null'}`)
+              .join('; ')}.`
+          : 'No matching project item found.',
+    });
+  }
+
+  for (const target of expectations.mustNotHaveOpenTitles ?? []) {
+    const violatingItem = items.find((item) => {
+      return (
+        matchesTitle(item.title, target) &&
+        item.status !== 'completed' &&
+        item.status !== 'cancelled'
+      );
+    });
+    const passed = !violatingItem;
+    results.push({
+      category: 'project_open_absence',
+      target,
+      passed,
+      details: violatingItem
+        ? `Found open matching item "${violatingItem.title}" with status ${violatingItem.status ?? 'null'}.`
+        : 'No open matching item found.',
+    });
+  }
+
+  return results;
+}
+
+function countCheckTotals(
+  meetingReports: BenchmarkMeetingReport[],
+  finalProjectChecks: ExpectationResult[]
+) {
+  const allChecks = [
+    ...meetingReports.flatMap((meeting) => meeting.expectationResults),
+    ...finalProjectChecks,
+  ];
+
+  return {
+    checksPassed: allChecks.filter((check) => check.passed).length,
+    checksFailed: allChecks.filter((check) => !check.passed).length,
+  };
+}
+
+function mergeTranscriptOnlyItems(
+  items: TranscriptOnlyGeneratedItem[] | undefined
+): BenchmarkMeetingItemSnapshot[] {
+  const merged = new Map<string, BenchmarkMeetingItemSnapshot>();
+
+  for (const item of items ?? []) {
+    const normalizedTitle = item.title?.trim();
+    if (!normalizedTitle) continue;
+
+    const key = `${item.itemType}:${normalizeText(normalizedTitle)}`;
+    merged.set(key, {
+      itemType: item.itemType,
+      title: normalizedTitle,
+      status: null,
+      assignee: item.assignee?.trim() || null,
+      priority: item.priority?.trim() || null,
+    });
+  }
+
+  return Array.from(merged.values());
+}
+
+function upsertProjectSnapshotItems(args: {
+  state: Map<string, ProjectItemSnapshot>;
+  items: BenchmarkMeetingItemSnapshot[];
+  meetingId: string;
+  systemId: BenchmarkSystemId;
+  sequenceNumber: number;
+}): void {
+  const { state, items, meetingId, systemId, sequenceNumber } = args;
+
+  for (const [index, item] of items.entries()) {
+    const key = `${item.itemType}:${normalizeText(item.title)}`;
+    state.set(key, {
+      id: `${systemId}-${sequenceNumber}-${index}`,
+      meetingId,
+      itemType: item.itemType,
+      title: item.title,
+      status: item.status,
+      assignee: item.assignee,
+      priority: item.priority,
+    });
+  }
+}
+
+function buildComparison(systemReports: BenchmarkSystemReport[]): BenchmarkComparison | undefined {
+  if (systemReports.length < 2) return undefined;
+
+  const ranking = systemReports
+    .map((systemReport) => {
+      const totalChecks = systemReport.summary.checksPassed + systemReport.summary.checksFailed;
+      return {
+        systemId: systemReport.systemId,
+        systemLabel: systemReport.systemLabel,
+        checksPassed: systemReport.summary.checksPassed,
+        checksFailed: systemReport.summary.checksFailed,
+        passRate: totalChecks > 0 ? systemReport.summary.checksPassed / totalChecks : 0,
+      };
+    })
+    .sort((left, right) => {
+      if (right.checksPassed !== left.checksPassed) return right.checksPassed - left.checksPassed;
+      return left.checksFailed - right.checksFailed;
+    });
+
+  const meetingKeySet = new Map<string, { sequenceNumber: number; slug: string }>();
+  for (const systemReport of systemReports) {
+    for (const meeting of systemReport.meetings) {
+      meetingKeySet.set(`${meeting.sequenceNumber}:${meeting.slug}`, {
+        sequenceNumber: meeting.sequenceNumber,
+        slug: meeting.slug,
+      });
+    }
+  }
+
+  const perMeeting = Array.from(meetingKeySet.values())
+    .sort((left, right) => left.sequenceNumber - right.sequenceNumber)
+    .map((meetingKey) => ({
+      sequenceNumber: meetingKey.sequenceNumber,
+      slug: meetingKey.slug,
+      scores: systemReports.map((systemReport) => {
+        const meeting = systemReport.meetings.find(
+          (candidate) =>
+            candidate.sequenceNumber === meetingKey.sequenceNumber &&
+            candidate.slug === meetingKey.slug
+        );
+        const checksPassed =
+          meeting?.expectationResults.filter((result) => result.passed).length ?? 0;
+        const checksFailed =
+          meeting?.expectationResults.filter((result) => !result.passed).length ?? 0;
+
+        return {
+          systemId: systemReport.systemId,
+          checksPassed,
+          checksFailed,
+        };
+      }),
+    }));
+
+  const deltas: BenchmarkComparison['deltas'] = [];
+  for (let index = 0; index < ranking.length; index += 1) {
+    const left = ranking[index];
+    const right = ranking[index + 1];
+    if (!left || !right) continue;
+
+    deltas.push({
+      leftSystemId: left.systemId,
+      rightSystemId: right.systemId,
+      checksPassedDelta: left.checksPassed - right.checksPassed,
+      checksFailedDelta: left.checksFailed - right.checksFailed,
+    });
+  }
+
+  return {
+    ranking,
+    perMeeting,
+    deltas,
+  };
+}
+
+async function evaluateCurrentSystem(args: {
+  apiBaseUrl: string;
+  scenario: BenchmarkScenario;
+  scenarioDir: string;
+}): Promise<BenchmarkSystemReport> {
+  const { apiBaseUrl, scenario, scenarioDir } = args;
+  const projectSuffix = process.env.BENCHMARK_PROJECT_SUFFIX
+    ? ` ${process.env.BENCHMARK_PROJECT_SUFFIX}`
+    : '';
+  const projectName = `${scenario.project.name} ${Date.now()}${projectSuffix}`.trim();
+
+  const createProject = await api<{ project?: { id: string; name: string } }>({
+    baseUrl: apiBaseUrl,
+    method: 'POST',
+    route: '/projects',
+    body: {
+      name: projectName,
+      description: scenario.project.description,
+      isRecurring: scenario.project.isRecurring ?? true,
+    },
+  });
+
+  const projectId = createProject.payload.project?.id;
+  if (createProject.status !== 201 || !projectId) {
+    throw new Error(`Failed to create project: ${JSON.stringify(createProject.payload)}`);
+  }
+
+  const meetingReports: BenchmarkMeetingReport[] = [];
+
+  for (const meeting of [...scenario.meetings].sort(
+    (left, right) => left.sequenceNumber - right.sequenceNumber
+  )) {
+    const transcriptPath = path.resolve(scenarioDir, meeting.transcriptPath);
+    const transcript = await readFile(transcriptPath, 'utf8');
+
+    const upload = await api<UploadedMeetingResponse>({
+      baseUrl: apiBaseUrl,
+      method: 'POST',
+      route: `/projects/${projectId}/upload-transcript`,
+      body: {
+        title: meeting.title,
+        transcript,
+        analysisMode: meeting.analysisMode ?? scenario.defaultAnalysisMode ?? 'product_manager',
+        contextNote: meeting.contextNote ?? scenario.defaultContextNote,
+      },
+    });
+
+    const report: BenchmarkMeetingReport = {
+      sequenceNumber: meeting.sequenceNumber,
+      slug: meeting.slug,
+      title: meeting.title,
+      requestStatus: upload.status,
+      transcriptEventCount: upload.payload.transcriptEventsCreated,
+      momGeneration: upload.payload.momGeneration,
+      itemSnapshot: [],
+      expectationResults: [],
+    };
+
+    if (upload.status === 201 && upload.payload.meetingId) {
+      report.meetingId = upload.payload.meetingId;
+
+      const [mom, items] = await Promise.all([
+        api<MeetingMomResponse>({
+          baseUrl: apiBaseUrl,
+          method: 'GET',
+          route: `/meetings/${upload.payload.meetingId}/mom`,
+        }),
+        api<MeetingItemsResponse>({
+          baseUrl: apiBaseUrl,
+          method: 'GET',
+          route: `/meetings/${upload.payload.meetingId}/items`,
+        }),
+      ]);
+
+      report.executiveSummary = mom.payload.mom?.executiveSummary ?? undefined;
+      report.detailedSummary = mom.payload.mom?.detailedSummary ?? undefined;
+      report.itemSnapshot = (items.payload.items ?? []).map((item) => ({
+        itemType: item.itemType,
+        title: item.title,
+        status: item.status,
+        assignee: item.assignee,
+        priority: item.priority,
+      }));
+      report.expectationResults = collectMeetingExpectationResults({
+        expectations: meeting.expectations,
+        executiveSummary: report.executiveSummary,
+        detailedSummary: report.detailedSummary,
+        items: report.itemSnapshot,
+      });
+    } else {
+      report.expectationResults.push({
+        category: 'meeting_summary_phrase',
+        target: 'analysis_success',
+        passed: false,
+        details: `Stateful upload failed with status ${upload.status}.`,
+      });
+    }
+
+    meetingReports.push(report);
+  }
+
+  const finalProject = await api<ProjectStateResponse>({
+    baseUrl: apiBaseUrl,
+    method: 'GET',
+    route: `/projects/${projectId}`,
+  });
+  const finalProjectItems = finalProject.payload.items ?? [];
+  const finalProjectChecks = collectFinalProjectChecks({
+    expectations: scenario.finalProjectExpectations,
+    items: finalProjectItems,
+  });
+  const totals = countCheckTotals(meetingReports, finalProjectChecks);
+
+  return {
+    systemId: 'current_system',
+    systemLabel: 'Current Stateful Accountability System',
+    systemMode: 'stateful_api',
+    runContext: {
+      strategySummary:
+        'Uses the product-memory pipeline through the backend API: transcript storage, structured extraction, reconciliation against prior project state, and final MoM generation.',
+      projectId,
+      projectName,
+    },
+    summary: {
+      meetingsProcessed: meetingReports.length,
+      checksPassed: totals.checksPassed,
+      checksFailed: totals.checksFailed,
+    },
+    meetings: meetingReports,
+    finalProjectChecks,
+    finalProjectSnapshot: {
+      project: finalProject.payload.project,
+      meetings: finalProject.payload.meetings,
+      items: finalProjectItems,
+      stats: finalProject.payload.stats,
+    },
+  };
+}
+
+async function evaluateTranscriptOnlySystem(args: {
+  apiBaseUrl: string;
+  scenario: BenchmarkScenario;
+  scenarioDir: string;
+}): Promise<BenchmarkSystemReport> {
+  const { apiBaseUrl, scenario, scenarioDir } = args;
+  const meetingReports: BenchmarkMeetingReport[] = [];
+  const projectState = new Map<string, ProjectItemSnapshot>();
+
+  for (const meeting of [...scenario.meetings].sort(
+    (left, right) => left.sequenceNumber - right.sequenceNumber
+  )) {
+    const transcriptPath = path.resolve(scenarioDir, meeting.transcriptPath);
+    const transcript = await readFile(transcriptPath, 'utf8');
+
+    const analysis = await api<TranscriptOnlyBenchmarkResponse>({
+      baseUrl: apiBaseUrl,
+      method: 'POST',
+      route: '/benchmark/transcript-only-mom',
+      body: {
+        title: meeting.title,
+        transcript,
+        analysisMode: meeting.analysisMode ?? scenario.defaultAnalysisMode ?? 'product_manager',
+        contextNote: meeting.contextNote ?? scenario.defaultContextNote,
+        projectName: scenario.project.name,
+        projectDescription: scenario.project.description,
+      },
+    });
+
+    const combinedItems = mergeTranscriptOnlyItems([
+      ...(analysis.payload.extractedItems ?? []),
+      ...(analysis.payload.mom?.items ?? []),
+    ]);
+
+    const report: BenchmarkMeetingReport = {
+      sequenceNumber: meeting.sequenceNumber,
+      slug: meeting.slug,
+      title: meeting.title,
+      meetingId: analysis.payload.analysisId,
+      requestStatus: analysis.status,
+      transcriptEventCount: analysis.payload.transcriptEventsCreated,
+      momGeneration: {
+        success: analysis.payload.success,
+        momId: analysis.payload.analysisId ?? null,
+        itemsCreated: combinedItems.length,
+        highlightsCreated: analysis.payload.mom?.highlights?.length ?? 0,
+        processingTimeMs: analysis.payload.processingTimeMs,
+        error: analysis.payload.error,
+      },
+      executiveSummary: analysis.payload.mom?.executiveSummary ?? undefined,
+      detailedSummary: analysis.payload.mom?.detailedSummary ?? undefined,
+      itemSnapshot: combinedItems,
+      expectationResults: [],
+    };
+
+    if (analysis.status === 200 && analysis.payload.success) {
+      upsertProjectSnapshotItems({
+        state: projectState,
+        items: combinedItems,
+        meetingId: report.meetingId ?? `transcript-only-${meeting.sequenceNumber}`,
+        systemId: 'transcript_only',
+        sequenceNumber: meeting.sequenceNumber,
+      });
+      report.expectationResults = collectMeetingExpectationResults({
+        expectations: meeting.expectations,
+        executiveSummary: report.executiveSummary,
+        detailedSummary: report.detailedSummary,
+        items: report.itemSnapshot,
+      });
+    } else {
+      report.expectationResults.push({
+        category: 'meeting_summary_phrase',
+        target: 'analysis_success',
+        passed: false,
+        details:
+          analysis.payload.error ??
+          `Transcript-only analysis failed with status ${analysis.status}.`,
+      });
+    }
+
+    meetingReports.push(report);
+  }
+
+  const finalProjectItems = Array.from(projectState.values());
+  const finalProjectChecks = collectFinalProjectChecks({
+    expectations: scenario.finalProjectExpectations,
+    items: finalProjectItems,
+  });
+  const totals = countCheckTotals(meetingReports, finalProjectChecks);
+
+  return {
+    systemId: 'transcript_only',
+    systemLabel: 'Transcript-Only Baseline',
+    systemMode: 'stateless_transcript_only',
+    runContext: {
+      strategySummary:
+        'Analyzes each meeting independently through the backend without prior project memory, database reconciliation, or carry-forward state transitions.',
+    },
+    summary: {
+      meetingsProcessed: meetingReports.length,
+      checksPassed: totals.checksPassed,
+      checksFailed: totals.checksFailed,
+    },
+    meetings: meetingReports,
+    finalProjectChecks,
+    finalProjectSnapshot: {
+      items: finalProjectItems,
+      stats: {
+        synthesizedProjectState: true,
+        note: 'Final project state is approximated by the latest transcript-only item titles. No durable project memory or status transitions are applied.',
+      },
+    },
+  };
+}
+
+async function main(): Promise<void> {
+  const { scenarioPath, apiBaseUrl, system } = parseArgs(process.argv.slice(2));
+  const resolvedScenarioPath = path.resolve(repoRoot, scenarioPath);
+  const scenarioDir = path.dirname(resolvedScenarioPath);
+  const scenario = await loadScenario(resolvedScenarioPath);
+  const startedAt = new Date();
+
+  const health = await api<unknown>({
+    baseUrl: apiBaseUrl,
+    method: 'GET',
+    route: '/health',
+    timeoutMs: 10_000,
+  });
+
+  if (health.status !== 200) {
+    throw new Error(`Backend health check failed with status ${health.status}`);
+  }
+
+  const requestedSystems: BenchmarkSystemId[] =
+    system === 'all' ? ['current_system', 'transcript_only'] : [system];
+
+  const systemReports: BenchmarkSystemReport[] = [];
+
+  for (const systemId of requestedSystems) {
+    if (systemId === 'current_system') {
+      systemReports.push(
+        await evaluateCurrentSystem({
+          apiBaseUrl,
+          scenario,
+          scenarioDir,
+        })
+      );
+      continue;
+    }
+
+    systemReports.push(
+      await evaluateTranscriptOnlySystem({
+        apiBaseUrl,
+        scenario,
+        scenarioDir,
+      })
+    );
+  }
+
+  const reportDir = path.resolve(repoRoot, DEFAULT_REPORT_DIR);
+  await mkdir(reportDir, { recursive: true });
+
+  const reportFileName = `${startedAt.toISOString().replace(/[:.]/g, '-')}-${scenario.scenarioId}.json`;
+  const reportPath = path.join(reportDir, reportFileName);
+  const comparison = buildComparison(systemReports);
+  const allSystemSummaries = systemReports.map((systemReport) => systemReport.summary);
+  const checksPassed = allSystemSummaries.reduce((sum, value) => sum + value.checksPassed, 0);
+  const checksFailed = allSystemSummaries.reduce((sum, value) => sum + value.checksFailed, 0);
+  const totalMeetingsProcessed = allSystemSummaries.reduce(
+    (sum, value) => sum + value.meetingsProcessed,
+    0
+  );
+  const bestSystemId = comparison?.ranking[0]?.systemId;
+
+  const report: BenchmarkReport = {
+    scenario: {
+      scenarioId: scenario.scenarioId,
+      displayName: scenario.displayName,
+      schemaVersion: scenario.schemaVersion,
+      sourcePath: resolvedScenarioPath,
+    },
+    run: {
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      apiBaseUrl,
+      requestedSystems,
+      reportPath,
+      health: health.payload,
+    },
+    summary: {
+      systemsRun: systemReports.length,
+      totalMeetingsProcessed,
+      checksPassed,
+      checksFailed,
+      bestSystemId,
+    },
+    systems: systemReports,
+    comparison,
+  };
+
+  await writeFile(reportPath, JSON.stringify(report, null, 2), 'utf8');
+
+  console.log(
+    JSON.stringify(
+      {
+        scenarioId: scenario.scenarioId,
+        requestedSystems,
+        systems: systemReports.map((systemReport) => ({
+          systemId: systemReport.systemId,
+          systemLabel: systemReport.systemLabel,
+          checksPassed: systemReport.summary.checksPassed,
+          checksFailed: systemReport.summary.checksFailed,
+        })),
+        bestSystemId,
+        reportPath,
+      },
+      null,
+      2
+    )
+  );
+}
+
+main().catch((error) => {
+  console.error(
+    JSON.stringify(
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+      null,
+      2
+    )
+  );
+  process.exit(1);
+});

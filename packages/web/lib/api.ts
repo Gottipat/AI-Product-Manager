@@ -191,6 +191,20 @@ export const meetingsApi = {
     apiFetch<AiStatus>(`/meetings/${id}/ai-status`),
 };
 
+export const meetingItemsApi = {
+  updateStatus: (id: string, status: MeetingItemStatus, updatedBy?: string) =>
+    apiFetch<{ item: MeetingItem }>(`/items/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, updatedBy }),
+    }),
+
+  update: (id: string, data: MeetingItemUpdateInput) =>
+    apiFetch<{ item: MeetingItem }>(`/items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+};
+
 // MoM API
 export const momApi = {
   getByMeeting: (meetingId: string) =>
@@ -233,12 +247,17 @@ export interface CreateProjectInput {
 export interface Meeting {
   id: string;
   title: string;
+  projectId?: string | null;
   startTime?: string;
   endTime?: string;
   status: string;
   durationMinutes?: number;
   captureSource?: string;
   totalTranscriptEvents?: number;
+  project?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface TranscriptEvent {
@@ -257,17 +276,37 @@ export interface AiStatus {
   message: string;
 }
 
+export type MeetingItemStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'blocked'
+  | 'deferred'
+  | 'cancelled';
+
 export interface MeetingItem {
   id: string;
+  meetingId: string;
+  projectId?: string;
   itemType: string;
   title: string;
   description?: string;
   assignee?: string;
   assigneeEmail?: string;
-  status: string;
+  status: MeetingItemStatus;
   priority?: string;
   dueDate?: string;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface MeetingItemUpdateInput {
+  title?: string;
+  description?: string | null;
+  assignee?: string | null;
+  assigneeEmail?: string | null;
+  dueDate?: string | null;
+  priority?: 'low' | 'medium' | 'high' | 'critical' | null;
 }
 
 export interface ProjectStats {
