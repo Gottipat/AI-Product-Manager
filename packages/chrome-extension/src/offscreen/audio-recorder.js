@@ -4,10 +4,15 @@
  *   to the AI backend when capture stops.
  */
 
-let mediaStream = null;
+let mixedStream = null;
+let tabStream = null;
+let microphoneStream = null;
 let mediaRecorder = null;
 let audioChunks = [];
 let activeMeetingId = null;
+let audioContext = null;
+let audioDestination = null;
+let audioMixMode = 'tab_only';
 
 function getPreferredMimeType() {
   if (typeof MediaRecorder === 'undefined') {
@@ -26,17 +31,40 @@ function getPreferredMimeType() {
 }
 
 function stopTracks() {
-  if (mediaStream) {
-    mediaStream.getTracks().forEach((track) => track.stop());
+  if (tabStream) {
+    tabStream.getTracks().forEach((track) => track.stop());
   }
-  mediaStream = null;
+
+  if (microphoneStream) {
+    microphoneStream.getTracks().forEach((track) => track.stop());
+  }
+
+  if (mixedStream) {
+    mixedStream.getTracks().forEach((track) => track.stop());
+  }
+
+  tabStream = null;
+  microphoneStream = null;
+  mixedStream = null;
 }
 
-function resetRecordingState() {
+async function resetRecordingState() {
   audioChunks = [];
   activeMeetingId = null;
   mediaRecorder = null;
+  audioMixMode = 'tab_only';
   stopTracks();
+
+  if (audioContext) {
+    try {
+      await audioContext.close();
+    } catch {
+      // Ignore context cleanup errors.
+    }
+  }
+
+  audioContext = null;
+  audioDestination = null;
 }
 
 async function getBackendConfig() {
@@ -98,7 +126,7 @@ async function startRecording(streamId, meetingId) {
     throw new Error('Audio recording is already active.');
   }
 
-  const constraints = {
+  const tabConstraints = {
     audio: {
       mandatory: {
         chromeMediaSource: 'tab',
@@ -108,14 +136,45 @@ async function startRecording(streamId, meetingId) {
     video: false,
   };
 
-  mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+  tabStream = await navigator.mediaDevices.getUserMedia(tabConstraints);
   audioChunks = [];
   activeMeetingId = meetingId;
+  audioMixMode = 'tab_only';
+
+  audioContext = new AudioContext();
+  audioDestination = audioContext.createMediaStreamDestination();
+
+  const tabSource = audioContext.createMediaStreamSource(tabStream);
+  tabSource.connect(audioDestination);
+  tabSource.connect(audioContext.destination);
+
+  try {
+    microphoneStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: false,
+    });
+
+    const microphoneSource = audioContext.createMediaStreamSource(microphoneStream);
+    microphoneSource.connect(audioDestination);
+    audioMixMode = 'mixed_tab_and_mic';
+  } catch (error) {
+    microphoneStream = null;
+    console.warn(
+      '[Meeting AI Offscreen] Microphone unavailable, falling back to tab audio only.',
+      error
+    );
+  }
+
+  mixedStream = audioDestination.stream;
 
   const mimeType = getPreferredMimeType();
   mediaRecorder = mimeType
-    ? new MediaRecorder(mediaStream, { mimeType })
-    : new MediaRecorder(mediaStream);
+    ? new MediaRecorder(mixedStream, { mimeType })
+    : new MediaRecorder(mixedStream);
 
   mediaRecorder.ondataavailable = (event) => {
     if (event.data && event.data.size > 0) {
@@ -124,21 +183,27 @@ async function startRecording(streamId, meetingId) {
   };
 
   mediaRecorder.start(1000);
+
+  return {
+    audioMixMode,
+    microphoneIncluded: audioMixMode === 'mixed_tab_and_mic',
+  };
 }
 
 async function stopRecording(meetingId) {
   if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-    resetRecordingState();
-    return { uploaded: false, skipped: true };
+    await resetRecordingState();
+    return { uploaded: false, skipped: true, audioMixMode };
   }
 
   const recorder = mediaRecorder;
   const finalMeetingId = meetingId || activeMeetingId;
+  const finalAudioMixMode = audioMixMode;
 
   return new Promise((resolve, reject) => {
     recorder.onerror = () => {
       const message = recorder.error?.message || 'Audio recorder failed.';
-      resetRecordingState();
+      void resetRecordingState();
       reject(new Error(message));
     };
 
@@ -152,12 +217,14 @@ async function stopRecording(meetingId) {
           uploaded: true,
           bytes: blob.size,
           mimeType: blob.type || 'audio/webm',
+          audioMixMode: finalAudioMixMode,
+          microphoneIncluded: finalAudioMixMode === 'mixed_tab_and_mic',
           ...uploadResult,
         });
       } catch (error) {
         reject(error);
       } finally {
-        resetRecordingState();
+        await resetRecordingState();
       }
     };
 
@@ -176,10 +243,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     case 'OFFSCREEN_START_AUDIO_RECORDING':
       (async () => {
         try {
-          await startRecording(message.data?.streamId, message.data?.meetingId);
-          sendResponse({ success: true });
+          const result = await startRecording(message.data?.streamId, message.data?.meetingId);
+          sendResponse({ success: true, ...result });
         } catch (error) {
-          resetRecordingState();
+          await resetRecordingState();
           sendResponse({ success: false, error: error.message });
         }
       })();
@@ -191,7 +258,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           const result = await stopRecording(message.data?.meetingId);
           sendResponse({ success: true, ...result });
         } catch (error) {
-          resetRecordingState();
+          await resetRecordingState();
           sendResponse({ success: false, error: error.message });
         }
       })();

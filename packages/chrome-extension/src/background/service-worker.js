@@ -24,6 +24,7 @@ let lastSyncError = null;
 let recentPreviewLines = [];
 let currentDraftPreview = null;
 let audioCaptureActive = false;
+let audioCaptureMode = 'disabled';
 
 const MAX_PREVIEW_LINES = 6;
 const RETRY_BASE_DELAY_MS = 2500;
@@ -115,6 +116,7 @@ async function resetCaptureRuntimeState() {
   recentPreviewLines = [];
   currentDraftPreview = null;
   audioCaptureActive = false;
+  audioCaptureMode = 'disabled';
   clearRetryTimer();
 
   await persistRuntimeState();
@@ -352,11 +354,15 @@ async function startAudioCapture(tabId, meetingId) {
   }
 
   audioCaptureActive = true;
+  audioCaptureMode = response.audioMixMode || 'tab_only';
+  console.log(`[Meeting AI BG] Audio capture started in mode: ${audioCaptureMode}`);
+
+  return response;
 }
 
 async function stopAudioCapture(meetingId) {
   if (!audioCaptureActive) {
-    return { uploaded: false, skipped: true };
+    return { uploaded: false, skipped: true, audioMixMode: audioCaptureMode };
   }
 
   const response = await sendRuntimeMessage({
@@ -365,6 +371,7 @@ async function stopAudioCapture(meetingId) {
   });
 
   audioCaptureActive = false;
+  audioCaptureMode = response.audioMixMode || 'disabled';
 
   if (!response?.success) {
     throw new Error(response?.error || 'Failed to stop and upload tab audio recording.');
@@ -524,6 +531,7 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
     recentPreviewLines = [];
     currentDraftPreview = null;
     audioCaptureActive = false;
+    audioCaptureMode = 'disabled';
     clearRetryTimer();
 
     console.log(
@@ -531,7 +539,7 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
     );
 
     await startMeeting(currentMeetingId);
-    await startAudioCapture(tabId, currentMeetingId);
+    const audioStartResult = await startAudioCapture(tabId, currentMeetingId);
     await persistRuntimeState();
     await persistPreviewState();
 
@@ -556,7 +564,12 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
       );
     }
 
-    return { success: true, meetingId: currentMeetingId };
+    return {
+      success: true,
+      meetingId: currentMeetingId,
+      audioMixMode: audioStartResult.audioMixMode || 'tab_only',
+      microphoneIncluded: Boolean(audioStartResult.microphoneIncluded),
+    };
   } catch (error) {
     console.error('[Meeting AI BG] Failed to start capture:', error);
     await resetCaptureRuntimeState();
@@ -591,6 +604,7 @@ async function handleStopCapture(tabId) {
     currentMeetingId = null;
     currentProjectId = null;
     audioCaptureActive = false;
+    audioCaptureMode = 'disabled';
     clearRetryTimer();
     recentPreviewLines = [];
     currentDraftPreview = null;
@@ -615,6 +629,7 @@ async function handleStopCapture(tabId) {
       totalSentEvents,
       queueFlushed,
       audioUploaded: Boolean(audioResult?.uploaded),
+      audioMixMode: audioResult?.audioMixMode || 'disabled',
     };
   } catch (error) {
     console.error('[Meeting AI BG] Failed to stop capture:', error);
