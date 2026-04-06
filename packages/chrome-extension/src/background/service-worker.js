@@ -35,6 +35,76 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function ensureContentScriptReady(tabId) {
+  if (!tabId) {
+    return null;
+  }
+
+  const initialStatus = await sendMessageToTab(tabId, { type: 'GET_STATUS' });
+  if (initialStatus) {
+    return initialStatus;
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['src/content/caption-observer.js'],
+    });
+  } catch (error) {
+    console.warn('[Meeting AI BG] Failed to inject content script:', error);
+  }
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await delay(500);
+    const status = await sendMessageToTab(tabId, { type: 'GET_STATUS' });
+    if (status) {
+      return status;
+    }
+  }
+
+  return null;
+}
+
+async function resetCaptureRuntimeState() {
+  captureActive = false;
+  currentMeetingId = null;
+  currentProjectId = null;
+  totalSentEvents = 0;
+  pendingTranscriptBatches = [];
+  nextBatchId = 1;
+  retryAttempt = 0;
+  syncState = 'idle';
+  lastSyncError = null;
+  recentPreviewLines = [];
+  currentDraftPreview = null;
+  clearRetryTimer();
+
+  await persistRuntimeState();
+  await persistPreviewState();
+  await chrome.storage.local.set({
+    captureActive: false,
+    currentMeetingId: null,
+    currentProjectId: null,
+    captionStats: {
+      totalEvents: 0,
+      totalSentEvents: 0,
+      queuedBatches: 0,
+      queuedEvents: 0,
+      retryAttempt: 0,
+      syncState: 'idle',
+      lastSyncError: null,
+      lastUpdated: Date.now(),
+    },
+    transcriptPreview: {
+      recentLines: [],
+      draft: null,
+      updatedAt: Date.now(),
+    },
+    meetUrl: null,
+    captureStartedAt: null,
+  });
+}
+
 function buildMeetingTitle(meetUrl, tabTitle) {
   const cleanTitle = (tabTitle || '')
     .replace(/\s*-\s*Google Meet$/i, '')
@@ -326,6 +396,13 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
       throw new Error('Backend is not reachable. Make sure it is running.');
     }
 
+    const contentScriptStatus = await ensureContentScriptReady(tabId);
+    if (!contentScriptStatus) {
+      throw new Error(
+        'Google Meet captions helper is not ready in this tab. Refresh the Meet tab once and try again.'
+      );
+    }
+
     const title = buildMeetingTitle(meetUrl, tabTitle);
     const { meeting } = await createMeeting(title, meetUrl, projectId);
 
@@ -356,20 +433,27 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
     });
     await updateStoredStats({ totalEvents: 0, bufferSize: 0, hasDraft: false, draftSpeaker: null });
 
-    const response = await sendMessageToTab(tabId, { type: 'START_CAPTURE' });
+    let response = await sendMessageToTab(tabId, { type: 'START_CAPTURE' });
+    if (!response?.success) {
+      await ensureContentScriptReady(tabId);
+      response = await sendMessageToTab(tabId, { type: 'START_CAPTURE' });
+    }
+
     if (response && response.success === false) {
       throw new Error(response.error || 'Content script failed to start capture.');
+    }
+    if (!response) {
+      throw new Error(
+        'Could not start transcript capture in the Meet tab. Refresh the tab and try again.'
+      );
     }
 
     return { success: true, meetingId: currentMeetingId };
   } catch (error) {
     console.error('[Meeting AI BG] Failed to start capture:', error);
-    captureActive = false;
-    currentMeetingId = null;
-    currentProjectId = null;
-    syncState = 'idle';
+    await resetCaptureRuntimeState();
     lastSyncError = error.message;
-    await persistRuntimeState();
+    await updateSyncState('idle', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -434,6 +518,7 @@ async function handleStopCapture(tabId) {
     };
   } catch (error) {
     console.error('[Meeting AI BG] Failed to stop capture:', error);
+    await updateSyncState('error', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -523,24 +608,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case 'POPUP_GET_STATUS':
-      sendResponse({
-        captureActive,
-        currentMeetingId,
-        currentProjectId,
-        totalSentEvents,
-        queuedBatches: pendingTranscriptBatches.length,
-        queuedEvents: pendingTranscriptBatches.reduce(
-          (total, batch) => total + batch.events.length,
-          0
-        ),
-        syncState,
-        lastSyncError,
-        retryAttempt,
-        recentPreviewLines,
-        currentDraftPreview,
-        backendUrl,
-      });
-      break;
+      (async () => {
+        const tabStatus = message.data?.tabId
+          ? await ensureContentScriptReady(message.data.tabId)
+          : null;
+
+        sendResponse({
+          captureActive,
+          currentMeetingId,
+          currentProjectId,
+          totalSentEvents,
+          queuedBatches: pendingTranscriptBatches.length,
+          queuedEvents: pendingTranscriptBatches.reduce(
+            (total, batch) => total + batch.events.length,
+            0
+          ),
+          syncState,
+          lastSyncError,
+          retryAttempt,
+          recentPreviewLines,
+          currentDraftPreview,
+          backendUrl,
+          tabReachable: Boolean(tabStatus),
+          tabCaptureActive: tabStatus?.isCapturing || false,
+          tabBufferedEvents: tabStatus?.bufferSize || 0,
+          tabObservedEvents: tabStatus?.totalEvents || 0,
+        });
+      })();
+      return true;
+
+    case 'POPUP_RESET_CAPTURE_STATE':
+      (async () => {
+        await resetCaptureRuntimeState();
+        sendResponse({ success: true });
+      })();
+      return true;
 
     case 'POPUP_HEALTH_CHECK':
       (async () => {

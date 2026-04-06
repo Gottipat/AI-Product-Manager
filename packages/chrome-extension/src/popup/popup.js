@@ -217,8 +217,36 @@ function resetCapturePanels() {
   els.eventCount.textContent = '0';
   els.sentCount.textContent = '0';
   els.meetingIdDisplay.textContent = '—';
+  els.durationDisplay.textContent = '0:00';
   setSyncStatus('idle', 0, 0, 0, null);
   renderPreview([], null);
+}
+
+async function reconcileCaptureState(settings) {
+  const bgStatus = await sendToBackground('POPUP_GET_STATUS', {
+    tabId: currentTabId,
+  });
+
+  if (!settings.captureActive || !settings.currentMeetingId) {
+    return bgStatus;
+  }
+
+  const hasLiveCapture =
+    bgStatus?.captureActive && (bgStatus?.tabCaptureActive || (bgStatus?.queuedBatches || 0) > 0);
+
+  if (hasLiveCapture) {
+    return bgStatus;
+  }
+
+  await sendToBackground('POPUP_RESET_CAPTURE_STATE');
+  resetCapturePanels();
+  return {
+    ...bgStatus,
+    captureActive: false,
+    currentMeetingId: null,
+    currentProjectId: null,
+    tabCaptureActive: false,
+  };
 }
 
 function startDurationTimer() {
@@ -355,23 +383,28 @@ async function init() {
       }
     }
 
+    const bgStatus = await reconcileCaptureState(settings);
+
     // 4. Check if capture is already active
-    if (settings.captureActive && settings.currentMeetingId) {
+    if (bgStatus?.captureActive && settings.currentMeetingId) {
       captureStartTime = settings.captureStartedAt || Date.now();
-      els.meetingIdDisplay.textContent = shortenId(settings.currentMeetingId);
+      els.meetingIdDisplay.textContent = shortenId(
+        bgStatus.currentMeetingId || settings.currentMeetingId
+      );
 
       // Setup project badge
-      if (settings.currentProjectId) {
-        const pMatch = availableProjects.find((p) => p.id === settings.currentProjectId);
+      const projectId = bgStatus.currentProjectId || settings.currentProjectId;
+      if (projectId) {
+        const pMatch = availableProjects.find((p) => p.id === projectId);
         if (pMatch) {
           els.projectBadgeName.textContent = pMatch.name;
           els.projectBadge.style.display = 'inline-flex';
         }
       }
 
-      const stats = settings.captionStats || {};
-      els.eventCount.textContent = stats.totalEvents || 0;
-      els.sentCount.textContent = stats.totalSentEvents || 0;
+      const stats = settings.captionStats || bgStatus || {};
+      els.eventCount.textContent = stats.totalEvents || stats.tabObservedEvents || 0;
+      els.sentCount.textContent = stats.totalSentEvents || bgStatus?.totalSentEvents || 0;
       setSyncStatus(
         stats.syncState || 'idle',
         stats.queuedEvents || 0,
@@ -392,6 +425,10 @@ async function init() {
       showState('ready');
     }
   } else {
+    if (settings.captureActive) {
+      await sendToBackground('POPUP_RESET_CAPTURE_STATE');
+    }
+    resetCapturePanels();
     showState('no-meet');
   }
 }
@@ -435,7 +472,9 @@ async function updateStats() {
   }
 
   // Also get status from background
-  const bgStatus = await sendToBackground('POPUP_GET_STATUS');
+  const bgStatus = await sendToBackground('POPUP_GET_STATUS', {
+    tabId: currentTabId,
+  });
   if (bgStatus) {
     els.sentCount.textContent = bgStatus.totalSentEvents || 0;
     setSyncStatus(
