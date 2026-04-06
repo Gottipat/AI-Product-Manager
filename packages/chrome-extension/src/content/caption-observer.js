@@ -144,10 +144,12 @@ if (globalThis.__meetingAiContentObserverInstalled) {
 
     if (speaker && speaker !== 'Unknown') {
       const escapedSpeaker = escapeRegExp(speaker);
+      const firstToken = escapeRegExp(speaker.split(/\s+/)[0] || speaker);
       sanitized = sanitized
         .replace(new RegExp(`^${escapedSpeaker}\\s*[:\\-–—]\\s*`, 'i'), '')
         .replace(new RegExp(`^${escapedSpeaker}\\s+(?=[A-Z])`, 'i'), '')
         .replace(new RegExp(`^${escapedSpeaker}(?=[A-Z])`, 'i'), '')
+        .replace(new RegExp(`^${firstToken}\\s+(?=[A-Z])`, 'i'), '')
         .trim();
     }
 
@@ -232,6 +234,84 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     return fallback;
   }
 
+  function findCaptionRowForSpeakerElement(speakerElement, container) {
+    let current =
+      speakerElement instanceof Element ? speakerElement : speakerElement?.parentElement;
+    let bestMatch = null;
+
+    while (current && current !== container) {
+      const visibleTextLength = readVisibleText(current).length;
+      const speakerCount = getSpeakerCount(current);
+      const textElementCount = getTextElementCount(current);
+
+      if (
+        speakerCount === 1 &&
+        textElementCount >= 1 &&
+        textElementCount <= 6 &&
+        visibleTextLength > 0 &&
+        visibleTextLength < 320
+      ) {
+        bestMatch = current;
+      }
+
+      if (speakerCount > 1 || visibleTextLength > 420) {
+        break;
+      }
+
+      current = current.parentElement;
+    }
+
+    return bestMatch;
+  }
+
+  function getPrimarySpeakerFromRow(row) {
+    if (!row) {
+      return 'Unknown';
+    }
+
+    const speakerElements = [
+      ...(row.matches?.(SPEAKER_SELECTOR) ? [row] : []),
+      ...row.querySelectorAll(SPEAKER_SELECTOR),
+    ];
+
+    for (const element of speakerElements) {
+      const candidate = normalizeSpeakerName(readVisibleText(element));
+      if (isLikelySpeakerName(candidate)) {
+        return candidate;
+      }
+    }
+
+    return 'Unknown';
+  }
+
+  function buildRowFingerprint(row, speaker) {
+    if (!row) {
+      return `${buildSpeakerId(speaker)}:unknown-row`;
+    }
+
+    if (!row.dataset.meetingAiRowId) {
+      row.dataset.meetingAiRowId = `row-${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    return `${buildSpeakerId(speaker)}:${row.dataset.meetingAiRowId}`;
+  }
+
+  function extractCaptionFromRow(row) {
+    const speaker = getPrimarySpeakerFromRow(row);
+    const text = sanitizeCaptionText(collectTextFromNode(row), speaker);
+
+    if (!text) {
+      return null;
+    }
+
+    return {
+      speaker,
+      speakerId: buildSpeakerId(speaker),
+      rowFingerprint: buildRowFingerprint(row, speaker),
+      text,
+    };
+  }
+
   function resolveSpeakerForTextElement(textElement, row, container) {
     const candidateElements = [];
 
@@ -290,12 +370,41 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     return {
       speaker,
       speakerId: buildSpeakerId(speaker),
+      rowFingerprint: buildRowFingerprint(row || textElement.parentElement, speaker),
       text,
     };
   }
 
   function collectCaptionRows(container) {
     const rows = [];
+    const seenRowFingerprints = new Set();
+    const speakerElements = Array.from(container.querySelectorAll(SPEAKER_SELECTOR)).filter(
+      (element) => isLikelySpeakerName(readVisibleText(element))
+    );
+
+    for (const speakerElement of speakerElements) {
+      const row = findCaptionRowForSpeakerElement(speakerElement, container);
+      if (!row) {
+        continue;
+      }
+
+      const snapshot = extractCaptionFromRow(row);
+      if (!snapshot) {
+        continue;
+      }
+
+      if (seenRowFingerprints.has(snapshot.rowFingerprint)) {
+        continue;
+      }
+
+      seenRowFingerprints.add(snapshot.rowFingerprint);
+      rows.push(snapshot);
+    }
+
+    if (rows.length > 0) {
+      return rows;
+    }
+
     const seenSnapshots = new Set();
     const textElements = Array.from(container.querySelectorAll(TEXT_SELECTOR)).filter((element) =>
       readVisibleText(element)
@@ -559,7 +668,8 @@ if (globalThis.__meetingAiContentObserverInstalled) {
   function upsertDraft(snapshot, now = Date.now()) {
     if (!snapshot?.text) return;
 
-    const speakerKey = snapshot.speakerId || buildSpeakerId(snapshot.speaker);
+    const speakerKey =
+      snapshot.rowFingerprint || snapshot.speakerId || buildSpeakerId(snapshot.speaker);
     const existingDraft = activeDrafts.get(speakerKey);
     const lastCommitted = lastCommittedBySpeaker.get(speakerKey);
 
