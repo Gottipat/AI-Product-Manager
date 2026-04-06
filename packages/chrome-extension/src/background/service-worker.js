@@ -231,10 +231,16 @@ async function apiRequest(method, path, body = null) {
 
   const res = await fetch(url, options);
   const data = await res.json();
+  const errorDetails =
+    typeof data === 'string'
+      ? data
+      : data && typeof data === 'object'
+        ? JSON.stringify(data)
+        : String(data);
 
   if (!res.ok) {
-    console.error(`[Meeting AI BG] API ${method} ${path} failed:`, data);
-    throw new Error(`API ${method} ${path} failed: ${res.status}`);
+    console.error(`[Meeting AI BG] API ${method} ${path} failed: ${errorDetails}`);
+    throw new Error(data?.error || `API ${method} ${path} failed: ${res.status}`);
   }
 
   return data;

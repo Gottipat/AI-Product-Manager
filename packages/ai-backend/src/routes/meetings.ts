@@ -79,7 +79,7 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: 'Meeting not found' });
     }
 
-    const updated = await meetingRepository.updateStatus(request.params.id, 'in_progress');
+    const updated = await meetingRepository.start(request.params.id);
     return { meeting: updated };
   });
 

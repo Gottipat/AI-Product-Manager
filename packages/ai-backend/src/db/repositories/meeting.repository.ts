@@ -63,6 +63,25 @@ export class MeetingRepository {
   }
 
   /**
+   * Start a meeting and ensure start time is recorded for later completion.
+   */
+  async start(id: string, startTime = new Date()) {
+    const meeting = await this.findById(id);
+    if (!meeting) return null;
+
+    const result = await db
+      .update(meetings)
+      .set({
+        status: 'in_progress',
+        startTime: meeting.startTime ?? startTime,
+        updatedAt: new Date(),
+      })
+      .where(eq(meetings.id, id))
+      .returning();
+    return result[0];
+  }
+
+  /**
    * Complete a meeting (set end time and calculate duration)
    */
   async complete(id: string, endTime = new Date()) {

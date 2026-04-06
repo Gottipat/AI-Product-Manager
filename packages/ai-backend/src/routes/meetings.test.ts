@@ -10,6 +10,7 @@ vi.mock('../db/repositories/meeting.repository.js', () => ({
   meetingRepository: {
     create: vi.fn(),
     findById: vi.fn(),
+    start: vi.fn(),
     updateStatus: vi.fn(),
     complete: vi.fn(),
     addParticipant: vi.fn(),
@@ -91,14 +92,16 @@ describe('Meeting Routes', () => {
 
   describe('POST /api/v1/meetings/:id/start', () => {
     it('should update status to in_progress', async () => {
-      (meetingRepository.updateStatus as Mock).mockResolvedValue({
+      (meetingRepository.start as Mock).mockResolvedValue({
         id: 'meeting-123',
         status: 'in_progress',
+        startTime: new Date('2026-04-06T09:00:00.000Z'),
       });
 
-      const result = await meetingRepository.updateStatus('meeting-123', 'in_progress');
+      const result = await meetingRepository.start('meeting-123');
 
       expect(result?.status).toBe('in_progress');
+      expect(meetingRepository.start).toHaveBeenCalledWith('meeting-123');
     });
   });
 
