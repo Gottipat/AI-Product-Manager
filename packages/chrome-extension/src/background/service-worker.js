@@ -287,6 +287,26 @@ async function triggerExtractItems(meetingId) {
   return apiRequest('POST', `/api/v1/meetings/${meetingId}/extract-items`, {});
 }
 
+async function runPostCaptureProcessing(meetingId) {
+  if (!meetingId) {
+    return;
+  }
+
+  try {
+    await triggerMoM(meetingId);
+    console.log('[Meeting AI BG] MoM generation triggered');
+  } catch (error) {
+    console.warn('[Meeting AI BG] MoM generation failed:', error.message);
+  }
+
+  try {
+    await triggerExtractItems(meetingId);
+    console.log('[Meeting AI BG] Item extraction triggered');
+  } catch (error) {
+    console.warn('[Meeting AI BG] Item extraction failed:', error.message);
+  }
+}
+
 /* ───────────────────────────────────────────
    Transcript Queue
    ─────────────────────────────────────────── */
@@ -474,20 +494,6 @@ async function handleStopCapture(tabId) {
     if (currentMeetingId) {
       await completeMeeting(currentMeetingId);
       console.log(`[Meeting AI BG] Meeting completed: ${currentMeetingId}`);
-
-      try {
-        await triggerMoM(currentMeetingId);
-        console.log('[Meeting AI BG] MoM generation triggered');
-      } catch (error) {
-        console.warn('[Meeting AI BG] MoM generation failed:', error.message);
-      }
-
-      try {
-        await triggerExtractItems(currentMeetingId);
-        console.log('[Meeting AI BG] Item extraction triggered');
-      } catch (error) {
-        console.warn('[Meeting AI BG] Item extraction failed:', error.message);
-      }
     }
 
     captureActive = false;
@@ -509,6 +515,8 @@ async function handleStopCapture(tabId) {
       meetUrl: null,
       captureStartedAt: null,
     });
+
+    void runPostCaptureProcessing(completedMeetingId);
 
     return {
       success: true,

@@ -571,16 +571,25 @@ els.stopBtn.addEventListener('click', async () => {
   els.stopBtn.disabled = true;
   els.stopBtn.textContent = 'Stopping...';
 
-  stopDurationTimer();
-  stopStatsPolling();
-
   const result = await sendToBackground('POPUP_STOP_CAPTURE', {
     tabId: currentTabId,
   });
 
   if (result?.success) {
+    stopDurationTimer();
+    stopStatsPolling();
     resetCapturePanels();
     showState('ready');
+  } else {
+    els.stopBtn.disabled = false;
+    els.stopBtn.innerHTML = `
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
+    </svg>
+    Stop Capture
+  `;
+    setConnection('disconnected', result?.error || 'Failed to stop capture');
+    return;
   }
 
   els.stopBtn.disabled = false;
