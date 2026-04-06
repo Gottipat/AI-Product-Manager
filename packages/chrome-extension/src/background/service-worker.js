@@ -1,8 +1,8 @@
 /**
  * @fileoverview Background Service Worker
  * @description Manages API communication with the AI backend.
- *   Receives finalized transcript batches from the content script, persists an
- *   outbound queue for reliability, and coordinates meeting lifecycle actions.
+ *   Coordinates meeting lifecycle actions, uploads the finalized transcript
+ *   after capture stops, and exposes processing status to the popup UI.
  */
 
 /* ───────────────────────────────────────────
@@ -25,6 +25,8 @@ let recentPreviewLines = [];
 let currentDraftPreview = null;
 let audioCaptureActive = false;
 let audioCaptureMode = 'disabled';
+let lastCompletedMeetingId = null;
+let captureDebug = null;
 
 const MAX_PREVIEW_LINES = 6;
 const RETRY_BASE_DELAY_MS = 2500;
@@ -117,6 +119,8 @@ async function resetCaptureRuntimeState() {
   currentDraftPreview = null;
   audioCaptureActive = false;
   audioCaptureMode = 'disabled';
+  lastCompletedMeetingId = null;
+  captureDebug = null;
   clearRetryTimer();
 
   await persistRuntimeState();
@@ -188,6 +192,8 @@ async function persistRuntimeState() {
     lastSyncError,
     recentPreviewLines,
     currentDraftPreview,
+    lastCompletedMeetingId,
+    captureDebug,
   });
 }
 
@@ -206,6 +212,12 @@ async function updateStoredStats(extra = {}) {
       retryAttempt,
       syncState,
       lastSyncError,
+      captureActive,
+      currentMeetingId,
+      currentProjectId,
+      lastCompletedMeetingId,
+      audioCaptureMode,
+      captureDebug,
       lastUpdated: Date.now(),
     },
   });
@@ -224,8 +236,57 @@ async function persistPreviewState() {
 async function updateSyncState(nextState, errorMessage = null) {
   syncState = nextState;
   lastSyncError = errorMessage;
+  captureDebug = {
+    ...(captureDebug || {}),
+    state: nextState,
+    error: errorMessage || null,
+    updatedAt: new Date().toISOString(),
+  };
   await persistRuntimeState();
   await updateStoredStats();
+}
+
+function buildFallbackTranscriptEvents() {
+  const rows = [...recentPreviewLines];
+
+  if (currentDraftPreview?.speaker && currentDraftPreview?.content) {
+    rows.push({
+      speaker: currentDraftPreview.speaker,
+      content: currentDraftPreview.content,
+      capturedAt: currentDraftPreview.capturedAt || new Date().toISOString(),
+    });
+  }
+
+  const dedupedEvents = [];
+  const seen = new Set();
+
+  for (const row of rows) {
+    if (!row?.speaker || !row?.content) {
+      continue;
+    }
+
+    const key = `${row.speaker}|${row.content}`.trim();
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    dedupedEvents.push({
+      speaker: row.speaker,
+      speakerId: `speaker:${
+        row.speaker
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || 'unknown'
+      }`,
+      content: row.content,
+      sequenceNumber: dedupedEvents.length + 1,
+      isFinal: true,
+      capturedAt: row.capturedAt || new Date().toISOString(),
+    });
+  }
+
+  return dedupedEvents;
 }
 
 function clearRetryTimer() {
@@ -393,17 +454,24 @@ async function runPostCaptureProcessing(meetingId) {
   }
 
   try {
+    await updateSyncState('generating_mom');
     await triggerMoM(meetingId);
     console.log('[Meeting AI BG] MoM generation triggered');
   } catch (error) {
     console.warn('[Meeting AI BG] MoM generation failed:', error.message);
+    await updateSyncState('error', error.message);
+    return;
   }
 
   try {
+    await updateSyncState('extracting_items');
     await triggerExtractItems(meetingId);
     console.log('[Meeting AI BG] Item extraction triggered');
+    lastCompletedMeetingId = meetingId;
+    await updateSyncState('ready');
   } catch (error) {
     console.warn('[Meeting AI BG] Item extraction failed:', error.message);
+    await updateSyncState('error', error.message);
   }
 }
 
@@ -533,12 +601,13 @@ async function handleStartCapture(meetUrl, tabId, projectId = null, tabTitle = n
     pendingTranscriptBatches = [];
     nextBatchId = 1;
     retryAttempt = 0;
-    syncState = 'queued';
+    syncState = 'capturing';
     lastSyncError = null;
     recentPreviewLines = [];
     currentDraftPreview = null;
     audioCaptureActive = false;
     audioCaptureMode = 'disabled';
+    lastCompletedMeetingId = null;
     clearRetryTimer();
 
     console.log(
@@ -591,36 +660,91 @@ async function handleStopCapture(tabId) {
     const stopResponse = await sendMessageToTab(tabId, { type: 'STOP_CAPTURE' });
     console.log('[Meeting AI BG] Stop response from content script:', stopResponse);
 
-    const queueFlushed = await waitForTranscriptQueue(12000);
-    if (!queueFlushed) {
-      console.warn(
-        '[Meeting AI BG] Timed out waiting for transcript queue to flush before completion'
-      );
-      await updateSyncState('retrying', 'Some transcript batches are still queued.');
+    let finalTranscriptEvents = Array.isArray(stopResponse?.events) ? stopResponse.events : [];
+    captureDebug = {
+      ...(captureDebug || {}),
+      state: 'stop_requested',
+      stopResponse: stopResponse?.debug || null,
+      tabId: tabId || null,
+      updatedAt: new Date().toISOString(),
+    };
+    await persistRuntimeState();
+
+    if (finalTranscriptEvents.length === 0) {
+      finalTranscriptEvents = buildFallbackTranscriptEvents();
+      captureDebug = {
+        ...(captureDebug || {}),
+        fallbackUsed: finalTranscriptEvents.length > 0,
+        fallbackTranscriptEvents: finalTranscriptEvents.length,
+        updatedAt: new Date().toISOString(),
+      };
+      await persistRuntimeState();
     }
 
-    const audioResult = currentMeetingId ? await stopAudioCapture(currentMeetingId) : null;
-
-    if (currentMeetingId) {
-      await completeMeeting(currentMeetingId);
-      console.log(`[Meeting AI BG] Meeting completed: ${currentMeetingId}`);
-    }
+    const finalizedEventCount = finalTranscriptEvents.length;
 
     captureActive = false;
+    currentDraftPreview = null;
+    recentPreviewLines = finalTranscriptEvents.slice(-MAX_PREVIEW_LINES).map((event) => ({
+      speaker: event.speaker,
+      content: event.content,
+      capturedAt: event.capturedAt || new Date().toISOString(),
+    }));
+    pendingTranscriptBatches = [];
+    retryAttempt = 0;
+    clearRetryTimer();
+    await persistPreviewState();
+    await updateStoredStats({
+      totalEvents: finalizedEventCount,
+      bufferSize: finalizedEventCount,
+      hasDraft: false,
+      draftSpeaker: null,
+    });
+
+    if (!currentMeetingId) {
+      throw new Error('No active meeting was found while stopping capture.');
+    }
+
     const completedMeetingId = currentMeetingId;
-    currentMeetingId = null;
-    currentProjectId = null;
+    const completedProjectId = currentProjectId;
+
+    await updateSyncState('finalizing');
+
+    if (finalizedEventCount > 0) {
+      await updateSyncState('uploading_transcript');
+      await sendTranscriptBatch(completedMeetingId, finalTranscriptEvents);
+      totalSentEvents = finalizedEventCount;
+      await persistRuntimeState();
+      await updateStoredStats({
+        totalEvents: finalizedEventCount,
+        bufferSize: finalizedEventCount,
+        hasDraft: false,
+        draftSpeaker: null,
+      });
+    } else {
+      totalSentEvents = 0;
+      await persistRuntimeState();
+      await updateStoredStats({
+        totalEvents: 0,
+        bufferSize: 0,
+        hasDraft: false,
+        draftSpeaker: null,
+      });
+    }
+
+    await updateSyncState('uploading_audio');
+    const audioResult = await stopAudioCapture(completedMeetingId);
+
+    await updateSyncState('completing_meeting');
+    await completeMeeting(completedMeetingId);
+    console.log(`[Meeting AI BG] Meeting completed: ${completedMeetingId}`);
+
     audioCaptureActive = false;
     audioCaptureMode = 'disabled';
-    clearRetryTimer();
-    recentPreviewLines = [];
-    currentDraftPreview = null;
-    syncState = queueFlushed ? 'idle' : 'retrying';
-    if (queueFlushed) {
-      lastSyncError = null;
-    }
+    lastCompletedMeetingId = completedMeetingId;
+    currentMeetingId = completedMeetingId;
+    currentProjectId = completedProjectId;
     await persistRuntimeState();
-    await persistPreviewState();
 
     await chrome.storage.local.set({
       captureActive: false,
@@ -628,13 +752,28 @@ async function handleStopCapture(tabId) {
       captureStartedAt: null,
     });
 
+    if (finalizedEventCount === 0) {
+      await updateSyncState(
+        'error',
+        'No transcript lines were extracted. Keep Google Meet captions visible and try again.'
+      );
+      return {
+        success: false,
+        meetingId: completedMeetingId,
+        totalSentEvents,
+        audioUploaded: Boolean(audioResult?.uploaded),
+        audioMixMode: audioResult?.audioMixMode || 'disabled',
+        error:
+          'No transcript lines were extracted. Keep Google Meet captions visible and try again.',
+      };
+    }
+
     void runPostCaptureProcessing(completedMeetingId);
 
     return {
       success: true,
       meetingId: completedMeetingId,
       totalSentEvents,
-      queueFlushed,
       audioUploaded: Boolean(audioResult?.uploaded),
       audioMixMode: audioResult?.audioMixMode || 'disabled',
     };
@@ -663,7 +802,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'CAPTION_STATS':
       (async () => {
+        captureDebug = {
+          ...(captureDebug || {}),
+          captionStats: message.data || null,
+          updatedAt: new Date().toISOString(),
+        };
         await updateStoredStats(message.data || {});
+        await persistRuntimeState();
         sendResponse({ success: true });
       })();
       return true;
@@ -690,6 +835,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 capturedAt: new Date().toISOString(),
               }
             : null;
+
+        captureDebug = {
+          ...(captureDebug || {}),
+          preview: {
+            recentLines: recentPreviewLines.length,
+            hasDraft: Boolean(currentDraftPreview),
+          },
+          updatedAt: new Date().toISOString(),
+        };
 
         await persistRuntimeState();
         await persistPreviewState();
@@ -739,6 +893,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           captureActive,
           currentMeetingId,
           currentProjectId,
+          lastCompletedMeetingId,
+          captureDebug,
           totalSentEvents,
           queuedBatches: pendingTranscriptBatches.length,
           queuedEvents: pendingTranscriptBatches.reduce(
@@ -751,6 +907,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           recentPreviewLines,
           currentDraftPreview,
           backendUrl,
+          audioCaptureMode,
           tabReachable: Boolean(tabStatus),
           tabCaptureActive: tabStatus?.isCapturing || false,
           tabBufferedEvents: tabStatus?.bufferSize || 0,
@@ -825,6 +982,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     'lastSyncError',
     'recentPreviewLines',
     'currentDraftPreview',
+    'lastCompletedMeetingId',
+    'captureDebug',
   ]);
 
   if (settings.backendUrl) backendUrl = settings.backendUrl;
@@ -853,6 +1012,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (settings.currentDraftPreview) {
     currentDraftPreview = settings.currentDraftPreview;
+  }
+  if (settings.lastCompletedMeetingId) {
+    lastCompletedMeetingId = settings.lastCompletedMeetingId;
+  }
+  if (settings.captureDebug) {
+    captureDebug = settings.captureDebug;
   }
 
   if (captureActive && pendingTranscriptBatches.length > 0) {

@@ -398,6 +398,30 @@ body {
   letter-spacing: 0.02em;
 }
 
+.capture-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.capture-label.processing {
+  color: var(--accent-light);
+}
+
+.capture-label.ready {
+  color: var(--success);
+}
+
+.capture-label.error {
+  color: var(--danger);
+}
+
+.capture-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
 .sync-card,
 .preview-card {
   background: var(--bg-card);
@@ -436,6 +460,13 @@ body {
 }
 
 .sync-pill.syncing,
+.sync-pill.capturing,
+.sync-pill.finalizing,
+.sync-pill.uploading_transcript,
+.sync-pill.uploading_audio,
+.sync-pill.completing_meeting,
+.sync-pill.generating_mom,
+.sync-pill.extracting_items,
 .draft-badge {
   background: rgba(124, 58, 237, 0.14);
   border-color: rgba(124, 58, 237, 0.3);
@@ -458,6 +489,12 @@ body {
 .sync-pill.idle {
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
+}
+
+.sync-pill.ready {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: var(--success);
 }
 
 .sync-status-text,

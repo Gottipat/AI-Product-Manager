@@ -98,7 +98,12 @@
         <div id="capturingState" class="state-panel" style="display: none">
           <div class="capture-active">
             <div class="pulse-ring"></div>
-            <span class="capture-label">Capturing...</span>
+            <div class="capture-copy">
+              <span id="captureStatusLabel" class="capture-label">Capturing...</span>
+              <p id="captureStatusHint" class="capture-hint">
+                Keep Google Meet captions visible while the extension listens.
+              </p>
+            </div>
           </div>
 
           <div id="projectBadge" class="project-badge" style="display: none">

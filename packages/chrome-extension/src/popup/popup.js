@@ -28,6 +28,8 @@ const els = {
   // Capturing state
   projectBadge: $('projectBadge'),
   projectBadgeName: $('projectBadgeName'),
+  captureStatusLabel: $('captureStatusLabel'),
+  captureStatusHint: $('captureStatusHint'),
   eventCount: $('eventCount'),
   sentCount: $('sentCount'),
   durationDisplay: $('durationDisplay'),
@@ -117,6 +119,34 @@ function formatQueueSummary(queuedEvents, queuedBatches) {
   return `${queuedEvents} ${eventLabel} queued across ${queuedBatches} ${batchLabel}.`;
 }
 
+function setCapturePanelMode(mode, syncState = 'idle', lastSyncError = null) {
+  const hints = {
+    capturing: 'Keep Google Meet captions visible while the extension listens.',
+    finalizing: 'Turning live captions into a clean post-meeting transcript.',
+    uploading_transcript: 'Uploading the finalized transcript to the backend.',
+    uploading_audio: 'Uploading the captured meeting audio.',
+    completing_meeting: 'Closing the meeting capture on the backend.',
+    generating_mom: 'Generating minutes of meeting from the saved transcript.',
+    extracting_items: 'Extracting action items and accountability details.',
+    ready: 'Processing is complete. You can start another capture.',
+    error: lastSyncError || 'Capture processing failed. Please try again.',
+  };
+
+  const isCapturing = mode === 'capturing';
+  const isError = mode === 'error';
+
+  els.captureStatusLabel.textContent = isCapturing
+    ? 'Capturing...'
+    : isError
+      ? 'Processing Failed'
+      : 'Processing...';
+  els.captureStatusLabel.className = `capture-label ${
+    isCapturing ? '' : isError ? 'error' : 'processing'
+  }`.trim();
+  els.captureStatusHint.textContent = hints[syncState] || hints[mode] || hints.capturing;
+  els.stopBtn.style.display = isCapturing ? 'flex' : 'none';
+}
+
 function setSyncStatus(
   syncState,
   queuedEvents = 0,
@@ -129,6 +159,14 @@ function setSyncStatus(
     idle: 'Idle',
     queued: 'Queued',
     syncing: 'Syncing',
+    capturing: 'Capturing',
+    finalizing: 'Finalizing',
+    uploading_transcript: 'Transcript',
+    uploading_audio: 'Audio',
+    completing_meeting: 'Closing',
+    generating_mom: 'MoM',
+    extracting_items: 'Items',
+    ready: 'Ready',
     synced: 'Synced',
     retrying: 'Retrying',
     error: 'Error',
@@ -137,6 +175,59 @@ function setSyncStatus(
   els.syncStatusPill.className = `sync-pill ${normalizedState}`;
   els.syncStatusPill.textContent = statusLabels[normalizedState] || 'Idle';
   els.queueStatusText.textContent = formatQueueSummary(queuedEvents, queuedBatches);
+
+  if (normalizedState === 'capturing') {
+    els.queueStatusText.textContent = 'The canonical transcript is created after you stop capture.';
+    els.syncStatusText.textContent =
+      'Listening for speaker-labeled caption updates in Google Meet.';
+    return;
+  }
+
+  if (normalizedState === 'finalizing') {
+    els.queueStatusText.textContent =
+      'Compacting caption chunks into speaker-attributed transcript lines.';
+    els.syncStatusText.textContent =
+      'Turning live caption chunks into the final transcript for this meeting.';
+    return;
+  }
+
+  if (normalizedState === 'uploading_transcript') {
+    els.queueStatusText.textContent = 'Sending the final transcript to the backend for storage.';
+    els.syncStatusText.textContent = 'Uploading the finalized transcript to the backend now.';
+    return;
+  }
+
+  if (normalizedState === 'uploading_audio') {
+    els.queueStatusText.textContent = 'Transcript upload is done. Audio upload is in progress.';
+    els.syncStatusText.textContent = 'Uploading the captured meeting audio.';
+    return;
+  }
+
+  if (normalizedState === 'completing_meeting') {
+    els.queueStatusText.textContent =
+      'Transcript and audio are stored. Finalizing the meeting record.';
+    els.syncStatusText.textContent = 'Closing the meeting and preparing backend analysis.';
+    return;
+  }
+
+  if (normalizedState === 'generating_mom') {
+    els.queueStatusText.textContent = 'The backend is generating contextual minutes of meeting.';
+    els.syncStatusText.textContent = 'Generating contextual minutes of meeting.';
+    return;
+  }
+
+  if (normalizedState === 'extracting_items') {
+    els.queueStatusText.textContent =
+      'The backend is extracting accountability items from the meeting.';
+    els.syncStatusText.textContent = 'Extracting action items, questions, and accountability.';
+    return;
+  }
+
+  if (normalizedState === 'ready') {
+    els.queueStatusText.textContent = 'Everything is stored and the meeting is ready in the app.';
+    els.syncStatusText.textContent = 'Transcript, audio, and AI analysis are ready.';
+    return;
+  }
 
   if (normalizedState === 'retrying') {
     const retryText = retryAttempt > 0 ? ` Retrying automatically (attempt ${retryAttempt}).` : '';
@@ -220,6 +311,109 @@ function resetCapturePanels() {
   els.durationDisplay.textContent = '0:00';
   setSyncStatus('idle', 0, 0, 0, null);
   renderPreview([], null);
+  setCapturePanelMode('capturing', 'capturing', null);
+}
+
+function resetStartButton() {
+  els.startBtn.disabled = false;
+  els.startBtn.innerHTML = `
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <circle cx="12" cy="12" r="4" fill="currentColor"/>
+    </svg>
+    Start Capture
+  `;
+}
+
+function resetStopButton() {
+  els.stopBtn.disabled = false;
+  els.stopBtn.innerHTML = `
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
+    </svg>
+    Stop Capture
+  `;
+}
+
+function syncProjectBadge(projectId) {
+  if (!projectId) {
+    els.projectBadge.style.display = 'none';
+    return;
+  }
+
+  const match = availableProjects.find((project) => project.id === projectId);
+  if (!match) {
+    els.projectBadge.style.display = 'none';
+    return;
+  }
+
+  els.projectBadgeName.textContent = match.name;
+  els.projectBadge.style.display = 'inline-flex';
+}
+
+function applyCaptureStatus(status, previewOverride = null) {
+  if (!status) {
+    return;
+  }
+
+  const preview = previewOverride || {
+    recentLines: status.recentPreviewLines || [],
+    draft: status.currentDraftPreview || null,
+  };
+
+  els.eventCount.textContent = status.totalEvents || status.tabObservedEvents || 0;
+  els.sentCount.textContent = status.totalSentEvents || 0;
+  setSyncStatus(
+    status.syncState || 'idle',
+    status.queuedEvents || 0,
+    status.queuedBatches || 0,
+    status.retryAttempt || 0,
+    status.lastSyncError || null
+  );
+  renderPreview(preview.recentLines || [], preview.draft || null);
+
+  if (status.currentMeetingId || status.lastCompletedMeetingId) {
+    els.meetingIdDisplay.textContent = shortenId(
+      status.currentMeetingId || status.lastCompletedMeetingId
+    );
+  }
+
+  syncProjectBadge(status.currentProjectId || null);
+
+  if (status.captureActive) {
+    setCapturePanelMode('capturing', status.syncState || 'capturing', status.lastSyncError || null);
+    showState('capturing');
+    return;
+  }
+
+  if (status.syncState === 'error' && (status.currentMeetingId || status.lastCompletedMeetingId)) {
+    stopDurationTimer();
+    setCapturePanelMode('error', 'error', status.lastSyncError || null);
+    showState('capturing');
+    return;
+  }
+
+  if (
+    status.currentMeetingId &&
+    status.syncState &&
+    !['idle', 'ready', 'synced'].includes(status.syncState)
+  ) {
+    stopDurationTimer();
+    setCapturePanelMode('processing', status.syncState, status.lastSyncError || null);
+    showState('capturing');
+    return;
+  }
+
+  if (status.syncState === 'ready') {
+    stopDurationTimer();
+    stopStatsPolling();
+    resetStartButton();
+    showState('ready');
+    return;
+  }
+
+  resetStartButton();
+  showState('ready');
 }
 
 async function reconcileCaptureState(settings) {
@@ -345,6 +539,9 @@ async function init() {
     els.authTokenInput.value = settings.authToken;
   }
 
+  resetStartButton();
+  resetStopButton();
+
   // 2. Check backend connection and fetch projects
   setConnection('checking', 'Checking backend...');
   const healthResult = await sendToBackground('POPUP_HEALTH_CHECK');
@@ -384,46 +581,30 @@ async function init() {
     }
 
     const bgStatus = await reconcileCaptureState(settings);
+    const combinedStatus = {
+      ...(settings.captionStats || {}),
+      ...(bgStatus || {}),
+      currentMeetingId: bgStatus?.currentMeetingId || settings.currentMeetingId || null,
+      currentProjectId: bgStatus?.currentProjectId || settings.currentProjectId || null,
+    };
 
-    // 4. Check if capture is already active
-    if (bgStatus?.captureActive && settings.currentMeetingId) {
+    if (combinedStatus.captureActive) {
       captureStartTime = settings.captureStartedAt || Date.now();
-      els.meetingIdDisplay.textContent = shortenId(
-        bgStatus.currentMeetingId || settings.currentMeetingId
-      );
-
-      // Setup project badge
-      const projectId = bgStatus.currentProjectId || settings.currentProjectId;
-      if (projectId) {
-        const pMatch = availableProjects.find((p) => p.id === projectId);
-        if (pMatch) {
-          els.projectBadgeName.textContent = pMatch.name;
-          els.projectBadge.style.display = 'inline-flex';
-        }
-      }
-
-      const stats = settings.captionStats || bgStatus || {};
-      els.eventCount.textContent = stats.totalEvents || stats.tabObservedEvents || 0;
-      els.sentCount.textContent = stats.totalSentEvents || bgStatus?.totalSentEvents || 0;
-      setSyncStatus(
-        stats.syncState || 'idle',
-        stats.queuedEvents || 0,
-        stats.queuedBatches || 0,
-        stats.retryAttempt || 0,
-        stats.lastSyncError || null
-      );
-      renderPreview(
-        settings.transcriptPreview?.recentLines || [],
-        settings.transcriptPreview?.draft || null
-      );
-
-      showState('capturing');
       startDurationTimer();
       startStatsPolling();
+    } else if (
+      combinedStatus.currentMeetingId &&
+      combinedStatus.syncState &&
+      !['idle', 'ready', 'synced'].includes(combinedStatus.syncState)
+    ) {
+      captureStartTime = null;
+      startStatsPolling();
     } else {
+      captureStartTime = null;
       resetCapturePanels();
-      showState('ready');
     }
+
+    applyCaptureStatus(combinedStatus, settings.transcriptPreview || null);
   } else {
     if (settings.captureActive) {
       await sendToBackground('POPUP_RESET_CAPTURE_STATE');
@@ -439,6 +620,10 @@ async function init() {
 let statsInterval = null;
 
 function startStatsPolling() {
+  if (statsInterval) {
+    return;
+  }
+
   updateStats(); // immediate first
   statsInterval = setInterval(updateStats, 2000);
 }
@@ -452,43 +637,21 @@ function stopStatsPolling() {
 
 async function updateStats() {
   const stored = await chrome.storage.local.get(['captionStats', 'transcriptPreview']);
-  if (stored.captionStats) {
-    els.eventCount.textContent = stored.captionStats.totalEvents || 0;
-    els.sentCount.textContent = stored.captionStats.totalSentEvents || 0;
-    setSyncStatus(
-      stored.captionStats.syncState || 'idle',
-      stored.captionStats.queuedEvents || 0,
-      stored.captionStats.queuedBatches || 0,
-      stored.captionStats.retryAttempt || 0,
-      stored.captionStats.lastSyncError || null
-    );
-  }
-
-  if (stored.transcriptPreview) {
-    renderPreview(
-      stored.transcriptPreview.recentLines || [],
-      stored.transcriptPreview.draft || null
-    );
-  }
-
-  // Also get status from background
   const bgStatus = await sendToBackground('POPUP_GET_STATUS', {
     tabId: currentTabId,
   });
-  if (bgStatus) {
-    els.sentCount.textContent = bgStatus.totalSentEvents || 0;
-    setSyncStatus(
-      bgStatus.syncState || 'idle',
-      bgStatus.queuedEvents || 0,
-      bgStatus.queuedBatches || 0,
-      bgStatus.retryAttempt || 0,
-      bgStatus.lastSyncError || null
-    );
-    renderPreview(bgStatus.recentPreviewLines || [], bgStatus.currentDraftPreview || null);
-    if (bgStatus.currentMeetingId) {
-      els.meetingIdDisplay.textContent = shortenId(bgStatus.currentMeetingId);
-    }
+
+  if (!bgStatus && !stored.captionStats) {
+    return;
   }
+
+  applyCaptureStatus(
+    {
+      ...(stored.captionStats || {}),
+      ...(bgStatus || {}),
+    },
+    stored.transcriptPreview || null
+  );
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -496,20 +659,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
   if (changes.captionStats?.newValue) {
     const nextStats = changes.captionStats.newValue;
-    els.eventCount.textContent = nextStats.totalEvents || 0;
-    els.sentCount.textContent = nextStats.totalSentEvents || 0;
-    setSyncStatus(
-      nextStats.syncState || 'idle',
-      nextStats.queuedEvents || 0,
-      nextStats.queuedBatches || 0,
-      nextStats.retryAttempt || 0,
-      nextStats.lastSyncError || null
-    );
+    applyCaptureStatus(nextStats, changes.transcriptPreview?.newValue || null);
   }
 
-  if (changes.transcriptPreview?.newValue) {
-    const preview = changes.transcriptPreview.newValue;
-    renderPreview(preview.recentLines || [], preview.draft || null);
+  if (!changes.captionStats?.newValue && changes.transcriptPreview?.newValue) {
+    updateStats();
   }
 });
 
@@ -536,16 +690,13 @@ els.startBtn.addEventListener('click', async () => {
   if (result?.success) {
     captureStartTime = Date.now();
     els.meetingIdDisplay.textContent = shortenId(result.meetingId);
-    setSyncStatus('queued', 0, 0, 0, null);
+    setSyncStatus('capturing', 0, 0, 0, null);
     renderPreview([], null);
+    setCapturePanelMode('capturing', 'capturing', null);
 
     // Show project badge if attached to project
     if (selectedProjectId) {
-      const match = availableProjects.find((p) => p.id === selectedProjectId);
-      if (match) {
-        els.projectBadgeName.textContent = match.name;
-        els.projectBadge.style.display = 'inline-flex';
-      }
+      syncProjectBadge(selectedProjectId);
     } else {
       els.projectBadge.style.display = 'none';
     }
@@ -553,15 +704,9 @@ els.startBtn.addEventListener('click', async () => {
     showState('capturing');
     startDurationTimer();
     startStatsPolling();
+    resetStopButton();
   } else {
-    els.startBtn.disabled = false;
-    els.startBtn.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <circle cx="12" cy="12" r="4" fill="currentColor"/>
-      </svg>
-      Start Capture
-    `;
+    resetStartButton();
     setConnection('disconnected', result?.error || 'Failed to start capture');
   }
 });
@@ -577,28 +722,18 @@ els.stopBtn.addEventListener('click', async () => {
 
   if (result?.success) {
     stopDurationTimer();
-    stopStatsPolling();
-    resetCapturePanels();
-    showState('ready');
+    captureStartTime = null;
+    resetStopButton();
+    setCapturePanelMode('processing', 'finalizing', null);
+    setSyncStatus('finalizing', 0, 0, 0, null);
+    showState('capturing');
+    startStatsPolling();
+    return;
   } else {
-    els.stopBtn.disabled = false;
-    els.stopBtn.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
-    </svg>
-    Stop Capture
-  `;
+    resetStopButton();
     setConnection('disconnected', result?.error || 'Failed to stop capture');
     return;
   }
-
-  els.stopBtn.disabled = false;
-  els.stopBtn.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
-    </svg>
-    Stop Capture
-  `;
 });
 
 // Settings Toggle

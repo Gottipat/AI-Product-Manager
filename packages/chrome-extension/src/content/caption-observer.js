@@ -1,8 +1,8 @@
 /**
  * @fileoverview Content Script — Google Meet Caption Observer
  * @description Injected into Google Meet pages. Observes the DOM for live captions,
- *   normalizes speaker names, segments cleaner utterances, and forwards finalized
- *   transcript events to the background service worker.
+ *   normalizes speaker names, segments cleaner utterances, and accumulates a
+ *   final transcript that is uploaded after the meeting ends.
  */
 
 if (globalThis.__meetingAiContentObserverInstalled) {
@@ -37,14 +37,16 @@ if (globalThis.__meetingAiContentObserverInstalled) {
   let flushInterval = null;
   let scanScheduled = false;
   let sequenceNumber = 0;
-  let captionBuffer = [];
+  let committedEvents = [];
   let activeDrafts = new Map();
   let lastCommittedBySpeaker = new Map();
   let recentPreviewLines = [];
+  let lastObservedSnapshotCount = 0;
+  let lastObservedSpeakers = [];
+  let captionContainerFound = false;
 
   const BUFFER_FLUSH_MS = 1500;
   const DRAFT_IDLE_MS = 2600;
-  const MAX_BATCH_SIZE = 20;
   const MAX_PREVIEW_LINES = 6;
 
   /* ───────────────────────────────────────────
@@ -580,10 +582,15 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     chrome.runtime.sendMessage({
       type: 'CAPTION_STATS',
       data: {
-        totalEvents: sequenceNumber,
-        bufferSize: captionBuffer.length,
+        totalEvents: committedEvents.length,
+        bufferSize: committedEvents.length,
         hasDraft: activeDrafts.size > 0,
         draftSpeaker: previewDraft?.speaker || null,
+        activeDraftCount: activeDrafts.size,
+        committedEventCount: committedEvents.length,
+        lastObservedSnapshotCount,
+        lastObservedSpeakers,
+        captionContainerFound,
       },
     });
   }
@@ -599,18 +606,75 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     });
   }
 
-  function flushBuffer() {
-    if (captionBuffer.length === 0) return;
+  function normalizeComparisonText(text) {
+    return canonicalizeCaptionText(text);
+  }
 
-    const batch = [...captionBuffer];
-    captionBuffer = [];
+  function mergeTranscriptEvents(events) {
+    const merged = [];
 
-    chrome.runtime.sendMessage({
-      type: 'TRANSCRIPT_BATCH',
-      data: { events: batch },
-    });
+    for (const event of events) {
+      if (!event?.speaker || !event?.content) {
+        continue;
+      }
 
-    notifyStats();
+      const sanitizedContent = sanitizeCaptionText(event.content, event.speaker);
+      if (!sanitizedContent) {
+        continue;
+      }
+
+      const normalizedEvent = {
+        ...event,
+        content: sanitizedContent,
+        speaker: normalizeSpeakerName(event.speaker),
+        speakerId: buildSpeakerId(event.speaker),
+      };
+
+      const previous = merged[merged.length - 1];
+      if (!previous) {
+        merged.push(normalizedEvent);
+        continue;
+      }
+
+      const previousText = normalizeComparisonText(previous.content);
+      const nextText = normalizeComparisonText(normalizedEvent.content);
+      const sameSpeaker = speakersLikelyMatch(previous.speaker, normalizedEvent.speaker);
+
+      if (sameSpeaker && textsLikelyMatch(previous.content, normalizedEvent.content)) {
+        previous.content = pickPreferredText(previous.content, normalizedEvent.content);
+        previous.capturedAt = normalizedEvent.capturedAt;
+        previous.sequenceNumber = normalizedEvent.sequenceNumber;
+        previous.speaker = pickPreferredSpeaker(previous.speaker, normalizedEvent.speaker);
+        previous.speakerId = buildSpeakerId(previous.speaker);
+        continue;
+      }
+
+      if (sameSpeaker && nextText && previousText && nextText.includes(previousText)) {
+        previous.content = normalizedEvent.content;
+        previous.capturedAt = normalizedEvent.capturedAt;
+        previous.sequenceNumber = normalizedEvent.sequenceNumber;
+        continue;
+      }
+
+      if (sameSpeaker && previousText === nextText) {
+        previous.capturedAt = normalizedEvent.capturedAt;
+        previous.sequenceNumber = normalizedEvent.sequenceNumber;
+        continue;
+      }
+
+      merged.push(normalizedEvent);
+    }
+
+    return merged.map((event, index) => ({
+      ...event,
+      sequenceNumber: index + 1,
+      speakerId: buildSpeakerId(event.speaker),
+    }));
+  }
+
+  function buildFinalTranscriptEvents() {
+    const finalized = mergeTranscriptEvents(committedEvents);
+    return finalized.filter((event) => event.content && event.speaker);
   }
 
   function finalizeDraft(speakerKey) {
@@ -629,14 +693,14 @@ if (globalThis.__meetingAiContentObserverInstalled) {
 
     const event = {
       speaker: draft.speaker,
-      speakerId: draft.speakerId,
+      speakerId: buildSpeakerId(draft.speaker),
       content: draft.text,
       sequenceNumber,
       isFinal: true,
       capturedAt: new Date().toISOString(),
     };
 
-    captionBuffer.push(event);
+    committedEvents.push(event);
     recentPreviewLines.push({
       speaker: event.speaker,
       content: event.content,
@@ -650,11 +714,7 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     activeDrafts.delete(speakerKey);
     notifyPreview(event);
 
-    if (captionBuffer.length >= MAX_BATCH_SIZE) {
-      flushBuffer();
-    } else {
-      notifyStats();
-    }
+    notifyStats();
   }
 
   function finalizeStaleDrafts(force = false, now = Date.now()) {
@@ -681,7 +741,7 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     if (!existingDraft) {
       activeDrafts.set(speakerKey, {
         speaker: snapshot.speaker,
-        speakerId: speakerKey,
+        speakerId: snapshot.speakerId || buildSpeakerId(snapshot.speaker),
         text: nextText,
         lastSeenAt: now,
       });
@@ -713,7 +773,7 @@ if (globalThis.__meetingAiContentObserverInstalled) {
 
     activeDrafts.set(speakerKey, {
       speaker: snapshot.speaker,
-      speakerId: speakerKey,
+      speakerId: snapshot.speakerId || buildSpeakerId(snapshot.speaker),
       text: nextText,
       lastSeenAt: now,
     });
@@ -722,6 +782,9 @@ if (globalThis.__meetingAiContentObserverInstalled) {
   }
 
   function handleObservedCaptions(snapshots) {
+    lastObservedSnapshotCount = snapshots?.length || 0;
+    lastObservedSpeakers = (snapshots || []).map((snapshot) => snapshot.speaker).filter(Boolean);
+
     if (!snapshots || snapshots.length === 0) {
       finalizeStaleDrafts();
       return;
@@ -753,11 +816,13 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     const container = findCaptionContainer();
 
     if (!container) {
+      captionContainerFound = false;
       console.log('[Meeting AI] Caption container not found — retrying in 3s...');
       observerRetryTimeout = setTimeout(() => startObserving(retryCount + 1), 3000);
       return;
     }
 
+    captionContainerFound = true;
     console.log('[Meeting AI] Found caption container, starting observation');
 
     observer = new MutationObserver(() => {
@@ -773,7 +838,7 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     scheduleScan(container);
     flushInterval = setInterval(() => {
       finalizeStaleDrafts();
-      flushBuffer();
+      notifyStats();
     }, BUFFER_FLUSH_MS);
     isCapturing = true;
 
@@ -797,7 +862,6 @@ if (globalThis.__meetingAiContentObserverInstalled) {
     }
 
     finalizeStaleDrafts(true);
-    flushBuffer();
 
     isCapturing = false;
     scanScheduled = false;
@@ -850,10 +914,13 @@ if (globalThis.__meetingAiContentObserverInstalled) {
       case 'START_CAPTURE':
         console.log('[Meeting AI] Received START_CAPTURE command');
         sequenceNumber = 0;
-        captionBuffer = [];
+        committedEvents = [];
         activeDrafts = new Map();
         lastCommittedBySpeaker = new Map();
         recentPreviewLines = [];
+        lastObservedSnapshotCount = 0;
+        lastObservedSpeakers = [];
+        captionContainerFound = false;
 
         tryEnableCaptions();
         setTimeout(() => startObserving(), 2000);
@@ -866,15 +933,32 @@ if (globalThis.__meetingAiContentObserverInstalled) {
       case 'STOP_CAPTURE':
         console.log('[Meeting AI] Received STOP_CAPTURE command');
         stopObserving();
-        sendResponse({ success: true, totalEvents: sequenceNumber });
+        sendResponse({
+          success: true,
+          totalEvents: committedEvents.length,
+          events: buildFinalTranscriptEvents(),
+          debug: {
+            activeDraftCount: activeDrafts.size,
+            committedEventCount: committedEvents.length,
+            lastObservedSnapshotCount,
+            lastObservedSpeakers,
+            captionContainerFound,
+            previewLineCount: recentPreviewLines.length,
+          },
+        });
         break;
 
       case 'GET_STATUS':
         sendResponse({
           isCapturing,
-          totalEvents: sequenceNumber,
-          bufferSize: captionBuffer.length,
+          totalEvents: committedEvents.length,
+          bufferSize: committedEvents.length,
           draftSpeaker: getPreviewDraft()?.speaker || null,
+          activeDraftCount: activeDrafts.size,
+          committedEventCount: committedEvents.length,
+          lastObservedSnapshotCount,
+          lastObservedSpeakers,
+          captionContainerFound,
           pageUrl: window.location.href,
         });
         break;
