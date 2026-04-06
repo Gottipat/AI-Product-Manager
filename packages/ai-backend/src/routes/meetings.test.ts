@@ -3,8 +3,14 @@
  * @description Test cases for meeting CRUD endpoints
  */
 
+import { mkdir, writeFile } from 'fs/promises';
+
 import Fastify from 'fastify';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+
+import { meetingRepository } from '../db/repositories/meeting.repository.js';
+
+import { meetingRoutes } from './meetings.js';
 
 // Mock the repository
 vi.mock('../db/repositories/meeting.repository.js', () => ({
@@ -24,10 +30,6 @@ vi.mock('fs/promises', () => ({
   mkdir: vi.fn(),
   writeFile: vi.fn(),
 }));
-
-import { mkdir, writeFile } from 'fs/promises';
-import { meetingRepository } from '../db/repositories/meeting.repository.js';
-import { meetingRoutes } from './meetings.js';
 
 describe('Meeting Routes', () => {
   beforeEach(() => {
