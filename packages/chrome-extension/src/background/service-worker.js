@@ -784,6 +784,33 @@ async function handleStopCapture(tabId) {
   }
 }
 
+let creatingOffscreen; // A promise to track creation
+async function setupOffscreenDocument(path) {
+    const offscreenUrl = chrome.runtime.getURL(path);
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+        documentUrls: [offscreenUrl]
+    });
+
+    if (existingContexts.length > 0) {
+        return;
+    }
+
+    // prevent overlapping createDocument calls
+    if (creatingOffscreen) {
+        await creatingOffscreen;
+        return;
+    }
+
+    creatingOffscreen = chrome.offscreen.createDocument({
+        url: path,
+        reasons: ['USER_MEDIA'],
+        justification: 'Recording Meet tab audio for transcription',
+    });
+    await creatingOffscreen;
+    creatingOffscreen = null;
+}
+
 /* ───────────────────────────────────────────
    Message Handling
    ─────────────────────────────────────────── */

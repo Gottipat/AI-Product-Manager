@@ -250,6 +250,18 @@ export const momApi = {
     apiFetch<{ highlights: Highlight[] }>(`/meetings/${meetingId}/highlights`),
 };
 
+// Meetings API
+export const meetingsApi = {
+  list: (orgId: string) =>
+    apiFetch<{ meetings: Meeting[] }>(`/organizations/${orgId}/meetings`),
+    
+  get: (meetingId: string) =>
+    apiFetch<{ meeting: Meeting }>(`/meetings/${meetingId}`),
+    
+  getTranscripts: (meetingId: string) =>
+    apiFetch<{ events: TranscriptEvent[] }>(`/meetings/${meetingId}/transcripts`),
+};
+
 // Types
 export interface User {
   id: string;

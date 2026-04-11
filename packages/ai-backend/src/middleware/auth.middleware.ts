@@ -57,7 +57,12 @@ export async function authMiddleware(
   }
 
   try {
-    const token = request.cookies.auth_token;
+    let token = request.cookies.auth_token;
+
+    // Fallback to Bearer token if cookie is not present (used by Chrome Extension)
+    if (!token && request.headers.authorization?.startsWith('Bearer ')) {
+      token = request.headers.authorization.split(' ')[1];
+    }
 
     if (!token) {
       reply.status(401).send({ error: 'Authentication required' });

@@ -19,6 +19,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@deepgram/sdk": "^5.0.0",
     "@fastify/cookie": "^9.3.0",
     "@fastify/cors": "^8.5.0",
     "@fastify/websocket": "^8.3.0",

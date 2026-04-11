@@ -64,6 +64,9 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
       // Update meeting transcript count
       await meetingRepository.incrementTranscriptCount(request.params.id);
 
+      // Trigger Real-Time Extraction
+      actionItemsPipeline.extractLiveChunk(request.params.id, content).catch(console.error);
+
       return reply.status(201).send({ event });
     }
   );
@@ -102,6 +105,10 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
 
       // Update meeting transcript count
       await meetingRepository.incrementTranscriptCount(request.params.id, inserted.length);
+
+      // Trigger Real-Time Extraction with concatenated text
+      const chunkText = events.map(e => `${e.speaker}: ${e.content}`).join('\n');
+      actionItemsPipeline.extractLiveChunk(request.params.id, chunkText).catch(console.error);
 
       return reply.status(201).send({
         inserted: inserted.length,

@@ -22,7 +22,7 @@ import { BackendClient } from './api/index.js';
 import { AuthManager } from './auth/index.js';
 import { BrowserLauncher } from './browser/index.js';
 import { CaptionParser, TranscriptBuffer } from './captions/index.js';
-import { MeetJoiner, CaptionsController, ParticipantTracker } from './meet/index.js';
+import { MeetJoiner, CaptionsController, ParticipantTracker, AudioCaptureController } from './meet/index.js';
 
 const logger = pino({
   name: 'bot-runner',
@@ -37,6 +37,7 @@ const config = {
   meetLink: process.env.MEET_LINK,
   googleEmail: process.env.GOOGLE_EMAIL,
   googlePassword: process.env.GOOGLE_PASSWORD,
+  userDataDir: process.env.USER_DATA_DIR,
 };
 
 /**
@@ -87,18 +88,30 @@ export async function main(): Promise<void> {
   let page;
 
   // We use a dummy initialization here because TS doesn't know it'll be set in the loop
-  launcher = new BrowserLauncher({ headless: config.headless });
+  launcher = new BrowserLauncher({
+    headless: config.headless,
+    userDataDir: config.userDataDir,
+  });
   let isLauncherActive = false;
 
   for (let attempt = 1; attempt <= maxGlobalRetries; attempt++) {
     logger.info({ attempt, maxRetries: maxGlobalRetries }, 'Starting browser and join flow');
 
     try {
-      launcher = new BrowserLauncher({ headless: config.headless });
+      launcher = new BrowserLauncher({
+        headless: config.headless,
+        userDataDir: config.userDataDir,
+      });
       const context = await launcher.launch();
       isLauncherActive = true;
       page = await context.newPage();
       logger.info('✅ Browser launched');
+
+      // ─── Inject audio capture hooks BEFORE navigation ─────
+      const audioCapture = new AudioCaptureController();
+      await audioCapture.injectAudioHooks(page);
+      await audioCapture.setupChunkReceiver(page);
+      logger.info('✅ Audio capture hooks injected');
 
       // ─── Step 4: Google Auth (if credentials provided) ───
       if (config.googleEmail && config.googlePassword) {
@@ -158,10 +171,37 @@ export async function main(): Promise<void> {
     return;
   }
 
+  // Create a shared AudioCaptureController reference for use inside the try block
+  const audioCapture = new AudioCaptureController();
+  // Re-inject hooks since the controller is recreated
+  // (the addInitScript persists on the page from the earlier injection)
+  audioCapture['page'] = page;
+  audioCapture['hooksInjected'] = true;
+  audioCapture['exposedFunctionSetup'] = true;
+
   try {
     // Mark meeting as in progress
     await backend.startMeeting(meetingId);
     await backend.addParticipant(meetingId, config.botDisplayName, true);
+
+    // ─── Step 6a: Start audio capture & streaming ─────────
+    logger.info('Starting audio capture...');
+    let audioWs: import('ws').WebSocket | null = null;
+    try {
+      audioWs = await backend.connectAudioStream(meetingId);
+
+      // Wire: audio chunk → send to backend via WebSocket
+      audioCapture.onChunk((chunk) => {
+        if (audioWs && audioWs.readyState === audioWs.OPEN) {
+          audioWs.send(chunk);
+        }
+      });
+
+      await audioCapture.startRecording();
+      logger.info('✅ Audio capture pipeline active');
+    } catch (error) {
+      logger.warn({ error }, 'Audio capture setup failed — falling back to captions only');
+    }
 
     // ─── Step 6: Enable captions ─────────────────────────
     const captionsCtrl = new CaptionsController(page);
@@ -252,7 +292,17 @@ export async function main(): Promise<void> {
     // ─── Step 9: Post-meeting processing ─────────────────
     logger.info('Meeting ended. Processing...');
 
-    // Stop capture
+    // Stop audio capture
+    await audioCapture.stopRecording();
+    const audioStats = audioCapture.getStats();
+    logger.info(audioStats, 'Audio capture stats');
+
+    // Close audio WebSocket
+    if (audioWs && audioWs.readyState === audioWs.OPEN) {
+      audioWs.close();
+    }
+
+    // Stop caption capture
     buffer.stop();
     await parser.stopObserving();
 
