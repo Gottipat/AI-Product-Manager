@@ -54,6 +54,33 @@ function formatAccessRole(accessRole: ProjectAccessRole) {
   return accessRole.charAt(0).toUpperCase() + accessRole.slice(1);
 }
 
+const captureMethodCards = [
+  {
+    key: 'upload',
+    title: 'Transcript Upload',
+    badge: 'Recommended',
+    badgeClassName: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+    body:
+      'Most reliable path today. Best for demos, reviews, and generating the cleanest PM-style minutes of meeting.',
+  },
+  {
+    key: 'bot',
+    title: 'Join with Bot',
+    badge: 'Preview',
+    badgeClassName: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
+    body:
+      'Still in development. Bot join reliability can vary based on Google auth, waiting rooms, and meeting permissions.',
+  },
+  {
+    key: 'extension',
+    title: 'Chrome Extension',
+    badge: 'In Progress',
+    badgeClassName: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20',
+    body:
+      'Audio recording works. Final transcript processing happens after capture stops. Multi-speaker transcription with speaker labels is still being improved.',
+  },
+];
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
@@ -397,6 +424,34 @@ export default function ProjectDetailPage() {
                 <span className="text-xs text-gray-500">View-only access</span>
               )}
             </div>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/8 px-3.5 py-3">
+            <p className="text-sm font-medium text-amber-300">Before using Join with Bot</p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
+              This bot flow is still in development. In some meetings it joins and records correctly,
+              and in others it can be blocked by Google auth prompts, waiting rooms, or host-level
+              permissions. For important demos, transcript upload is the safest fallback.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {captureMethodCards.map((method) => (
+              <div
+                key={method.key}
+                className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-white">{method.title}</p>
+                  <span
+                    className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${method.badgeClassName}`}
+                  >
+                    {method.badge}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-gray-400">{method.body}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
