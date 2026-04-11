@@ -1,146 +1,110 @@
-# Meeting AI Documentation
+# Documentation Hub
 
-> Complete documentation hub for the Context-Aware AI Meeting System
+This folder contains the operational, technical, research, and review-facing
+documentation for the AI Product Manager project.
 
-## Quick Links
+## Start Here
 
-| Doc                                         | Purpose                                   |
-| ------------------------------------------- | ----------------------------------------- |
-| [Getting Started](#getting-started)         | Set up your development environment       |
-| [Architecture](./ARCHITECTURE.md)           | System design and package structure       |
-| [API Contracts](./API_CONTRACTS.md)         | API endpoints and data formats            |
-| [Database](./database/OVERVIEW.md)          | Schema, migrations, and operations        |
-| [Testing](./TESTING.md)                     | Test conventions and running tests        |
-| [Contributing](./CONTRIBUTING.md)           | Code style and PR process                 |
-| [Developer Tooling](./TOOLING.md)           | Pre-push hooks, linting, formatting       |
-| [Docker Run](./DOCKER_RUN.md)               | Team Docker setup and run guide           |
-| [Dataset Spec](./DATASET_SPEC.md)           | Longitudinal benchmark design             |
-| [Eval Rubric](./EVAL_RUBRIC.md)             | PM-grade system evaluation                |
-| [Paper Outline](./PAPER_OUTLINE.md)         | Research paper structure                  |
-| [Benchmark Harness](../benchmark/README.md) | Scenario runner for sequential evaluation |
+If you are new to the repo, use this order:
 
----
+1. [../README.md](../README.md)
+2. [REVIEW_GUIDE.md](./REVIEW_GUIDE.md)
+3. [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+4. [DOCKER_RUN.md](./DOCKER_RUN.md)
 
-## Getting Started
+## Recommended Docs By Audience
 
-### Recommended: Docker
+For product overview and walkthrough:
+
+- [REVIEW_GUIDE.md](./REVIEW_GUIDE.md)
+- [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+- [BENCHMARK_SLIDE_SUMMARY.md](./BENCHMARK_SLIDE_SUMMARY.md)
+
+For implementation and local setup:
+
+- [DOCKER_RUN.md](./DOCKER_RUN.md)
+- [ENVIRONMENT.md](./ENVIRONMENT.md)
+- [TESTING.md](./TESTING.md)
+- [TOOLING.md](./TOOLING.md)
+
+For architecture and implementation:
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [API_CONTRACTS.md](./API_CONTRACTS.md)
+- [database/OVERVIEW.md](./database/OVERVIEW.md)
+- [AI_PIPELINE.md](./AI_PIPELINE.md)
+
+For research and benchmark work:
+
+- [AI_PRODUCT_MANAGER_RESEARCH_PLAN.md](./AI_PRODUCT_MANAGER_RESEARCH_PLAN.md)
+- [DATASET_SPEC.md](./DATASET_SPEC.md)
+- [EVAL_RUBRIC.md](./EVAL_RUBRIC.md)
+- [PAPER_OUTLINE.md](./PAPER_OUTLINE.md)
+- [../benchmark/README.md](../benchmark/README.md)
+
+## Documentation Index
+
+| Document                                                                     | Purpose                                                         |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [PROJECT_STATUS.md](./PROJECT_STATUS.md)                                     | What is working well, what is experimental, and what comes next |
+| [REVIEW_GUIDE.md](./REVIEW_GUIDE.md)                                         | Guided product walkthrough                                      |
+| [DOCKER_RUN.md](./DOCKER_RUN.md)                                             | Full Docker workflow for local setup                            |
+| [ENVIRONMENT.md](./ENVIRONMENT.md)                                           | Environment variable reference                                  |
+| [TESTING.md](./TESTING.md)                                                   | Test commands and testing conventions                           |
+| [TOOLING.md](./TOOLING.md)                                                   | Lint, formatting, hooks, and local CI                           |
+| [ARCHITECTURE.md](./ARCHITECTURE.md)                                         | System architecture and package roles                           |
+| [API_CONTRACTS.md](./API_CONTRACTS.md)                                       | API routes and request/response contracts                       |
+| [AI_PIPELINE.md](./AI_PIPELINE.md)                                           | AI flow and context-aware MoM pipeline                          |
+| [database/OVERVIEW.md](./database/OVERVIEW.md)                               | Database schema and operational docs                            |
+| [BENCHMARK_SLIDE_SUMMARY.md](./BENCHMARK_SLIDE_SUMMARY.md)                   | Slide-friendly benchmark summary                                |
+| [AI_PRODUCT_MANAGER_RESEARCH_PLAN.md](./AI_PRODUCT_MANAGER_RESEARCH_PLAN.md) | Product and research thesis                                     |
+| [DATASET_SPEC.md](./DATASET_SPEC.md)                                         | Longitudinal scenario dataset design                            |
+| [EVAL_RUBRIC.md](./EVAL_RUBRIC.md)                                           | Evaluation method for PM-quality behavior                       |
+| [PAPER_OUTLINE.md](./PAPER_OUTLINE.md)                                       | Draft paper structure                                           |
+
+## Key Commands
+
+### Run The App
 
 ```bash
 cp .env.docker.example .env.docker
 docker compose --env-file .env.docker up --build -d
 ```
 
-Set at least:
+### Stop The App
+
+```bash
+docker compose --env-file .env.docker down
+```
+
+### Run Core Checks
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm pre-push
+```
+
+### Run Benchmark Comparison
+
+```bash
+pnpm benchmark:compare
+```
+
+## Environment Summary
+
+Minimum local Docker requirement:
 
 ```env
 OPENAI_API_KEY=sk-your-openai-key
 ```
 
-Then open:
+Optional depending on the path you are testing:
 
-- Web: `http://localhost:3001`
-- API health: `http://localhost:3002/api/v1/health`
+- `GOOGLE_EMAIL`
+- `GOOGLE_PASSWORD`
+- `DEEPGRAM_API_KEY`
 
-See [DOCKER_RUN.md](./DOCKER_RUN.md) for the full teammate workflow.
-
-### Local Development
-
-```bash
-# 1. Clone and install
-git clone https://github.com/KumarSashank/AI-Product-Manager.git
-cd AI-Product-Manager
-pnpm install
-
-# 2. Start local services
-docker compose up -d postgres
-
-# 3. Set up database
-cp packages/ai-backend/.env.example packages/ai-backend/.env
-pnpm --filter @meeting-ai/ai-backend db:push
-
-# 4. Run development servers
-pnpm dev
-```
-
-### Quick Validation Commands
-
-```bash
-# Full workspace tests
-pnpm test
-
-# Full workspace typecheck
-pnpm typecheck
-
-# Benchmark typecheck
-pnpm benchmark:typecheck
-
-# Compare the stateful system against transcript-only baseline
-pnpm benchmark:compare
-```
-
----
-
-## Documentation Index
-
-### Architecture & Design
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - System overview, package responsibilities, data flow
-- [API_CONTRACTS.md](./API_CONTRACTS.md) - REST endpoints, WebSocket events, validation schemas
-
-### Database
-
-- [database/OVERVIEW.md](./database/OVERVIEW.md) - Tech stack, architecture, quick start
-- [database/SCHEMA.md](./database/SCHEMA.md) - Complete table reference with all columns
-- [database/MIGRATIONS.md](./database/MIGRATIONS.md) - How to create and apply migrations
-- [database/TROUBLESHOOTING.md](./database/TROUBLESHOOTING.md) - Common issues and fixes
-- [database/RUNBOOK.md](./database/RUNBOOK.md) - Operations procedures, backup, recovery
-
-### AI Pipeline
-
-- [AI_PIPELINE.md](./AI_PIPELINE.md) - OpenAI integration, MoM generation, RAG search
-- [ENVIRONMENT.md](./ENVIRONMENT.md) - Environment variables and configuration
-- [AI_PRODUCT_MANAGER_RESEARCH_PLAN.md](./AI_PRODUCT_MANAGER_RESEARCH_PLAN.md) - Company, product, and research thesis
-- [DATASET_SPEC.md](./DATASET_SPEC.md) - Dataset schema for recurring-meeting evaluation
-- [EVAL_RUBRIC.md](./EVAL_RUBRIC.md) - Automatic and human PM evaluation framework
-- [PAPER_OUTLINE.md](./PAPER_OUTLINE.md) - Draft outline for the first research paper
-
-### Development
-
-- [TESTING.md](./TESTING.md) - Test framework, conventions, coverage requirements
-- [TOOLING.md](./TOOLING.md) - Git hooks, linting, formatting, CI/CD
-- [CONTRIBUTING.md](./CONTRIBUTING.md) - Branch strategy, code style, PR process
-- [DOCKER_RUN.md](./DOCKER_RUN.md) - Full Docker Compose workflow for teammates
-- [../benchmark/README.md](../benchmark/README.md) - Sequential benchmark harness and scenario runner
-
----
-
-## Package Documentation
-
-Each package has its own README:
-
-| Package                  | README                                                            | Description                      |
-| ------------------------ | ----------------------------------------------------------------- | -------------------------------- |
-| `@meeting-ai/shared`     | [packages/shared/README.md](../packages/shared/README.md)         | Shared types, schemas, constants |
-| `@meeting-ai/bot-runner` | [packages/bot-runner/README.md](../packages/bot-runner/README.md) | Google Meet bot (Playwright)     |
-| `@meeting-ai/ai-backend` | [packages/ai-backend/README.md](../packages/ai-backend/README.md) | AI extraction, MoM, RAG          |
-
----
-
-## Team Ownership
-
-| Package      | Owner         | Contact                 |
-| ------------ | ------------- | ----------------------- |
-| `shared`     | Both          | -                       |
-| `bot-runner` | @Gottipat     | Google Meet integration |
-| `ai-backend` | @KumarSashank | AI/ML processing        |
-
----
-
-## Changelog
-
-| Date       | Change                                | Author        |
-| ---------- | ------------------------------------- | ------------- |
-| 2024-02-06 | Initial documentation structure       | @KumarSashank |
-| 2024-02-06 | Added database documentation (5 docs) | @KumarSashank |
-| 2024-02-06 | Added testing documentation           | @KumarSashank |
-| 2024-02-06 | Added tooling documentation           | @KumarSashank |
+For more detail, see [ENVIRONMENT.md](./ENVIRONMENT.md).

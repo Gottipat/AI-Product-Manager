@@ -1,133 +1,84 @@
 # @meeting-ai/bot-runner
 
-> 🤖 **Owner**: Friend
->
-> Playwright-based bot for joining Google Meet and capturing transcripts
+Playwright-based Google Meet bot for the AI Product Manager system.
 
-## Overview
+## Purpose
 
-This package handles:
+This package is the automated meeting-join path. It attempts to join a Google
+Meet session as a visible participant, enable captions, and send meeting data
+into the backend.
 
-- Joining Google Meet sessions via Playwright/Chromium
-- Enabling and capturing live captions
-- Parsing speaker-attributed transcript events
-- Streaming transcripts in real-time to AI Backend
+## Current Status
 
-## Architecture
+This package is useful for experimentation and demos, but it should be treated
+as `Preview`.
 
-```
-src/
-├── browser/            # Playwright browser management
-│   ├── launcher.ts         # Browser launch + stealth config
-│   └── session.ts          # Browser session handling
-├── meet/               # Google Meet interaction
-│   ├── joiner.ts           # Meeting join logic (human-like)
-│   ├── captions.ts         # Caption enable/disable
-│   └── participants.ts     # Participant tracking
-├── captions/           # Caption processing
-│   ├── parser.ts           # Caption DOM parsing
-│   ├── attribution.ts      # Speaker attribution
-│   └── buffer.ts           # Caption batching
-├── utils/              # Utility modules
-│   └── human.ts            # Human behavior simulation
-└── index.ts            # Entry point
-```
+Why:
 
-## Human-like Behavior
+- meeting admission and waiting-room behavior vary
+- Google auth and 2FA create reliability friction
+- browser automation can break when Google changes UI or policies
 
-The bot simulates human behavior to avoid detection:
+This is why the main product recommends transcript upload first.
 
-| Feature             | Description                                                 |
-| ------------------- | ----------------------------------------------------------- |
-| **Human Typing**    | Types each character with 50-150ms delays, occasional typos |
-| **Mouse Movements** | Bezier curve movements (not straight lines)                 |
-| **Random Delays**   | Pauses between actions (0.5-3s)                             |
-| **Page Reading**    | Simulates reading before interacting                        |
-| **Click Behavior**  | Moves to element, pauses, then clicks                       |
+## What It Does
 
-### Usage
+- launches a Playwright browser session
+- joins Google Meet with a visible bot identity
+- enables captions when possible
+- captures caption text for backend ingestion
 
-```typescript
-import { humanType, humanClick, randomDelay } from './utils/human';
+## Run Locally
 
-// Type like a human
-await humanType(page, inputLocator, 'Hello World');
-
-// Click with mouse movement
-await humanClick(page, buttonLocator);
-
-// Random pause
-await randomDelay(1000, 3000);
-```
-
-## Stealth Configuration
-
-The browser is configured to bypass Google's bot detection:
-
-- ✅ Hides `navigator.webdriver` property
-- ✅ Spoofs `navigator.plugins` and `navigator.languages`
-- ✅ Mocks `window.chrome.runtime`
-- ✅ Spoofs WebGL vendor/renderer
-- ✅ Custom user agent (Mac Chrome)
-- ✅ Disabled automation indicators
-
-## Quick Start
+From the repo root:
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Development mode (opens browser)
-pnpm dev
-
-# Build
-pnpm build
-
-# Type checking
-pnpm typecheck
+pnpm --filter @meeting-ai/bot-runner dev
 ```
 
-## Environment Variables
+Or directly in the package:
+
+```bash
+pnpm dev
+```
+
+## Common Commands
+
+```bash
+pnpm dev
+pnpm build
+pnpm typecheck
+pnpm test
+```
+
+## Typical Environment
 
 ```env
-# Required
-AI_BACKEND_URL=http://localhost:3000
+AI_BACKEND_INTERNAL_URL=http://ai-backend:3002
 MEET_LINK=https://meet.google.com/xxx-xxxx-xxx
-
-# Optional
 BOT_DISPLAY_NAME=Meeting AI Bot
-LOG_LEVEL=info
+GOOGLE_EMAIL=
+GOOGLE_PASSWORD=
 ```
 
-## Known Issues
+## Best Use
 
-### "Can't join" Error
+Use this package when you want to explore:
 
-- First load often shows "can't join" - bot auto-reloads
-- Sometimes requires 2-3 reload attempts
-- Consider using authenticated Google profile for reliability
+- automated meeting joining
+- live caption capture
+- non-upload-based workflows
 
-### Transcript Capture
+Do not treat it as the most reliable evaluator/demo path for academic review.
 
-- DOM-based caption parsing may have outdated selectors
-- Audio transcription (Whisper API) is planned future work
+## Known Limitations
 
-## Scaling Architecture
+- may need manual admission into the meeting
+- may be blocked by account verification or policy changes
+- reliability depends on Google Meet UI and auth behavior
 
-For 1000+ users, see the recommended architecture:
+## Related Docs
 
-```
-                    Job Queue (Redis/BullMQ)
-                           ↓
-              Bot Workers (K8s auto-scaling)
-                           ↓
-              Browser Pool (Browserless.io)
-                           ↓
-            Google Meet → Transcription → AI Backend
-```
-
-## Important Notes
-
-⚠️ **Visible participant**: Bot joins as a visible participant  
-⚠️ **User consent**: Host must admit the bot from waiting room  
-⚠️ **Transparency**: Bot display name clearly indicates it's AI
+- [../../README.md](../../README.md)
+- [../../docs/PROJECT_STATUS.md](../../docs/PROJECT_STATUS.md)
+- [../../docs/REVIEW_GUIDE.md](../../docs/REVIEW_GUIDE.md)

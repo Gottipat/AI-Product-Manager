@@ -1,49 +1,106 @@
-# Meeting AI — Chrome Extension
+# @meeting-ai/chrome-extension
 
-> Capture Google Meet transcripts directly from your browser tab
+Browser-based Google Meet capture for the AI Product Manager system.
 
-## Overview
+## Purpose
 
-This Chrome extension serves as a **fallback** to the bot-runner approach. When the bot can't join a meeting (e.g., restricted access), users can capture transcripts directly from their browser using this extension.
+This extension is the in-browser capture path for meetings when transcript
+upload is not being used and the Playwright bot is not the right fit.
 
-## How It Works
+It is designed to:
 
-1. **Content Script** — Injects into Google Meet pages and observes the live captions DOM using MutationObserver (same selectors as `bot-runner`)
-2. **Background Service Worker** — Manages the meeting lifecycle and streams transcript batches to the AI backend
-3. **Popup UI** — Controls for starting/stopping capture, backend configuration, and live stats
+- attach to a live Google Meet tab
+- observe visible captions
+- capture meeting audio
+- upload meeting data into the backend
+- trigger downstream MoM and item generation
 
-## Installation (Development)
+## Current Status
 
-1. Open Chrome and go to `chrome://extensions/`
-2. Enable **Developer Mode** (toggle in top-right)
-3. Click **"Load unpacked"**
-4. Select the `packages/chrome-extension` directory
+What is working:
 
-## Usage
+- extension installation and popup flow
+- audio capture and upload
+- meeting lifecycle integration with the backend
+- processing-state visibility in the popup
 
-1. Open a Google Meet meeting in Chrome
-2. Click the Meeting AI extension icon in the toolbar
-3. Configure backend URL if needed (defaults to `http://localhost:3002`)
-4. Click **"Start Capture"**
-5. The extension will auto-enable captions and begin streaming transcripts
-6. Click **"Stop Capture"** when done — MoM generation will be triggered automatically
+What is still being improved:
+
+- reliable multi-speaker transcript extraction
+- stable speaker-attributed caption finalization across Google Meet DOM changes
+
+This is why the main app labels the extension as `In Progress`.
 
 ## Architecture
 
+```text
+Google Meet tab
+├── content script        observes caption DOM
+├── popup UI              start/stop and status display
+├── service worker        coordinates meeting lifecycle and uploads
+└── offscreen recorder    captures and uploads audio
 ```
-Google Meet Tab                    Extension Background              AI Backend
-┌──────────────┐                 ┌──────────────────┐           ┌─────────────┐
-│ Content      │  chrome.runtime │ Service Worker   │   HTTP    │ Fastify     │
-│ Script       │ ──────────────> │                  │ ────────> │ Server      │
-│ (caption     │   sendMessage   │ - Meeting CRUD   │  /api/v1  │             │
-│  observer)   │                 │ - Batch buffer   │           │ - Meetings  │
-│              │                 │ - API client     │           │ - Transcr.  │
-└──────────────┘                 └──────────────────┘           │ - MoM       │
-                                        ↕                       └─────────────┘
-                                 ┌──────────────────┐
-                                 │ Popup UI         │
-                                 │ - Start/Stop     │
-                                 │ - Live stats     │
-                                 │ - Settings       │
-                                 └──────────────────┘
+
+## How It Works
+
+1. Open a Google Meet meeting in Chrome.
+2. Start capture from the extension popup.
+3. The extension records audio and observes captions.
+4. On stop, it uploads the finalized meeting data to the backend.
+5. The backend completes the meeting and triggers MoM and item extraction.
+
+## Installation
+
+1. Open `chrome://extensions`
+2. Enable `Developer mode`
+3. Click `Load unpacked`
+4. Select `packages/chrome-extension`
+
+## Runtime Requirements
+
+- a running backend, usually at `http://localhost:3002`
+- a signed-in web app session if the flow requires authenticated backend access
+- visible Google Meet captions for transcript extraction
+
+The easiest way to prepare the backend is:
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build -d
 ```
+
+## Recommended Usage
+
+Use this package as an experimental/demo capture path.
+
+For the strongest product demo today, prefer:
+
+- transcript upload for reliable transcript quality
+
+Use the extension when you specifically want to demonstrate:
+
+- browser-based meeting capture
+- audio upload
+- live capture workflow
+
+## Known Limitations
+
+- caption DOM structure can change without warning
+- Google Meet exposes captions as incremental UI chunks, not clean final
+  utterances
+- multi-person speaker attribution is still under active improvement
+
+## Related Files
+
+```text
+src/background/   service worker and backend coordination
+src/content/      caption observer injected into Meet
+src/offscreen/    audio recording flow
+src/popup/        popup controls and processing state UI
+```
+
+## Related Docs
+
+- [../../README.md](../../README.md)
+- [../../docs/PROJECT_STATUS.md](../../docs/PROJECT_STATUS.md)
+- [../../docs/REVIEW_GUIDE.md](../../docs/REVIEW_GUIDE.md)

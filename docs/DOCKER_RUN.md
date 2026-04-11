@@ -1,6 +1,6 @@
 # Docker Run Guide
 
-This guide gets the project running for teammates with Docker, including environment setup, first-time bootstrapping, and the optional bot runner.
+This guide gets the project running with Docker, including environment setup, first-time bootstrapping, and the optional bot runner.
 
 ## What Runs In Docker
 
@@ -168,7 +168,7 @@ Common causes:
 
 Not for the normal transcript-upload flow. The current Docker setup works with uploaded transcripts and Google Meet captions using only `OPENAI_API_KEY`.
 
-If you later wire up audio-to-transcript experimentation with Deepgram in this branch, then teammates would also need a `DEEPGRAM_API_KEY`. That is not required for the default Docker flow today.
+If you later wire up audio-to-transcript experimentation with Deepgram in this branch, then local runs would also need a `DEEPGRAM_API_KEY`. That is not required for the default Docker flow today.
 
 ### Web cannot call the backend
 

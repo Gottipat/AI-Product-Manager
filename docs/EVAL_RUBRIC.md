@@ -341,7 +341,7 @@ Short-term, use:
 
 - the 5-meeting onboarding scenario already created
 - 10 more curated multi-meeting sequences
-- 3 human reviewers
+- 3 human evaluators
 - one baseline: transcript-only MoM generation
 - one improved system: current accountability branch
 
