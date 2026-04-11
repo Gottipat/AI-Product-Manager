@@ -33,6 +33,9 @@ export interface TranscriptEvent {
 
   /** Whether this is a final or interim transcript */
   isFinal: boolean;
+
+  /** Source of this transcript: 'captions' (DOM scraping) or 'audio' (Deepgram) */
+  source?: 'captions' | 'audio';
 }
 
 /**

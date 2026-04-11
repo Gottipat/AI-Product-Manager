@@ -13,6 +13,7 @@
 
 import 'dotenv/config';
 import cors from '@fastify/cors';
+import websocket from '@fastify/websocket';
 import { API_CONFIG } from '@meeting-ai/shared';
 import Fastify from 'fastify';
 
@@ -52,6 +53,9 @@ async function start(): Promise<void> {
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     });
+
+    // Register WebSocket support (for audio streaming)
+    await server.register(websocket);
 
     // Register all routes (routes already include /api/v1 prefix)
     await registerRoutes(server);
