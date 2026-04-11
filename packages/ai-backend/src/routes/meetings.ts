@@ -277,25 +277,4 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
       return { meetings };
     }
   );
-
-  /**
-   * GET /api/v1/meetings/:id/audio
-   * Stream the raw audio recording of the meeting a webm file
-   */
-  fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id/audio', async (request, reply) => {
-    // We need fs here dynamically or we can import it at top.
-    const fs = await import('fs');
-    const { getRecordingPath } = await import('../utils/storage.js');
-
-    const filePath = getRecordingPath(request.params.id);
-    if (!fs.existsSync(filePath)) {
-      return reply.status(404).send({ error: 'Audio recording not found for this meeting' });
-    }
-
-    const stat = fs.statSync(filePath);
-    return reply
-      .header('Content-Type', 'audio/webm')
-      .header('Content-Length', stat.size)
-      .send(fs.createReadStream(filePath));
-  });
 }

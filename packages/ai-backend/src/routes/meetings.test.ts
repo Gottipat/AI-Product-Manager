@@ -26,6 +26,11 @@ vi.mock('../db/repositories/meeting.repository.js', () => ({
   },
 }));
 
+vi.mock('../services/collaboration.service.js', () => ({
+  canEditMeeting: vi.fn().mockResolvedValue(true),
+  canViewMeeting: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('fs/promises', () => ({
   mkdir: vi.fn(),
   writeFile: vi.fn(),
@@ -194,6 +199,13 @@ describe('Meeting Routes', () => {
       });
 
       const app = Fastify();
+      app.addHook('preHandler', async (request) => {
+        request.user = {
+          userId: 'user-123',
+          email: 'professor@example.com',
+          role: 'admin',
+        };
+      });
       await meetingRoutes(app);
 
       const response = await app.inject({

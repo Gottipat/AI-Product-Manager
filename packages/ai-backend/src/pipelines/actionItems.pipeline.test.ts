@@ -134,13 +134,13 @@ describe('Action Items Pipeline', () => {
       expect(result.processingTimeMs).toBeGreaterThanOrEqual(0);
     });
 
-    it('should fail when no transcript available', async () => {
+    it('should return an empty success result when no transcript is available', async () => {
       (transcriptRepository.findByMeetingId as Mock).mockResolvedValue([]);
 
       const result = await actionItemsPipeline.extract('meeting-123');
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('No transcript available for this meeting');
+      expect(result.success).toBe(true);
+      expect(result.itemsCreated).toBe(0);
       expect(result.items).toEqual([]);
     });
 
