@@ -286,7 +286,7 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
     // We need fs here dynamically or we can import it at top.
     const fs = await import('fs');
     const { getRecordingPath } = await import('../utils/storage.js');
-    
+
     const filePath = getRecordingPath(request.params.id);
     if (!fs.existsSync(filePath)) {
       return reply.status(404).send({ error: 'Audio recording not found for this meeting' });

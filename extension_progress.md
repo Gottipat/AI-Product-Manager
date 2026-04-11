@@ -23,22 +23,22 @@ packages/chrome-extension/
 
 ## Key Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| **Reuses bot-runner DOM selectors** | Same `.iS70S`, `.McS7S`, `.VpS7S` selectors + fallbacks ensure caption extraction works identically |
-| **Same backend API endpoints** | No new API needed — extension uses the exact same `POST /api/v1/meetings/:id/transcripts/batch` as bot-runner |
-| **Vanilla JS (no build step)** | Chrome extensions load JS directly — avoids unnecessary bundling complexity |
-| **`captureSource` field** | New DB column distinguishes bot vs extension vs manual transcript sources |
+| Decision                            | Rationale                                                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Reuses bot-runner DOM selectors** | Same `.iS70S`, `.McS7S`, `.VpS7S` selectors + fallbacks ensure caption extraction works identically           |
+| **Same backend API endpoints**      | No new API needed — extension uses the exact same `POST /api/v1/meetings/:id/transcripts/batch` as bot-runner |
+| **Vanilla JS (no build step)**      | Chrome extensions load JS directly — avoids unnecessary bundling complexity                                   |
+| **`captureSource` field**           | New DB column distinguishes bot vs extension vs manual transcript sources                                     |
 
 ## Backend Changes
 
-| File | Change |
-|------|--------|
-| [enums.ts](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/ai-backend/src/db/schema/enums.ts) | Added `captureSourceEnum` |
-| [meetings.ts schema](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/ai-backend/src/db/schema/meetings.ts) | Added `captureSource` column |
-| [meetings.ts routes](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/ai-backend/src/routes/meetings.ts) | Accept `captureSource` in create meeting |
-| [index.ts](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/ai-backend/src/index.ts) | CORS now allows `chrome-extension://` origins |
-| [meeting.ts shared](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/shared/src/types/meeting.ts) | Added `CaptureSource` type |
+| File                                                                                                                  | Change                                        |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| [enums.ts](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/ai-backend/src/db/schema/enums.ts)              | Added `captureSourceEnum`                     |
+| [meetings.ts schema](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/ai-backend/src/db/schema/meetings.ts) | Added `captureSource` column                  |
+| [meetings.ts routes](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/ai-backend/src/routes/meetings.ts)    | Accept `captureSource` in create meeting      |
+| [index.ts](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/ai-backend/src/index.ts)                        | CORS now allows `chrome-extension://` origins |
+| [meeting.ts shared](file:///Users/kumarsashank/dev/AI-Product-Manager/packages/shared/src/types/meeting.ts)           | Added `CaptureSource` type                    |
 
 ## Popup UI Preview
 

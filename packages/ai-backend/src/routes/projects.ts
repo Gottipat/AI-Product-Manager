@@ -145,20 +145,17 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
       }
 
       // Get meetings associated with this project (by projectId OR googleMeetLink)
-      const conditions = [eq(meetings.projectId, project.id)];
-      if (project.googleMeetLink) {
-        conditions.push(
-            and(
-                eq(meetings.googleMeetLink, project.googleMeetLink),
-                isNull(meetings.projectId)
-            )
-        );
-      }
+      const meetingCondition = project.googleMeetLink
+        ? or(
+            eq(meetings.projectId, project.id),
+            and(eq(meetings.googleMeetLink, project.googleMeetLink), isNull(meetings.projectId))
+          )
+        : eq(meetings.projectId, project.id);
 
       const projectMeetings = await db
         .select()
         .from(meetings)
-        .where(conditions.length > 1 ? or(...conditions) : conditions[0]!)
+        .where(meetingCondition)
         .orderBy(desc(meetings.startTime));
 
       const projectItems: (typeof meetingItems.$inferSelect)[] = [];

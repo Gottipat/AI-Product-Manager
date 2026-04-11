@@ -54,16 +54,17 @@ export class MeetingRepository {
     id: string,
     status: 'scheduled' | 'bot_joining' | 'in_progress' | 'completed' | 'cancelled' | 'error'
   ) {
-    const updateData: any = { status, updatedAt: new Date() };
+    const updateData: Pick<NewMeeting, 'status' | 'updatedAt'> &
+      Partial<Pick<NewMeeting, 'startTime'>> = {
+      status,
+      updatedAt: new Date(),
+    };
+
     if (status === 'in_progress') {
-        updateData.startTime = new Date();
+      updateData.startTime = new Date();
     }
 
-    const result = await db
-      .update(meetings)
-      .set(updateData)
-      .where(eq(meetings.id, id))
-      .returning();
+    const result = await db.update(meetings).set(updateData).where(eq(meetings.id, id)).returning();
     return result[0];
   }
 

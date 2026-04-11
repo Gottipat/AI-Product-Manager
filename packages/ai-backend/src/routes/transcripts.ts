@@ -10,6 +10,7 @@ import {
   transcriptRepository,
   type NewTranscriptEvent,
 } from '../db/repositories/transcript.repository.js';
+import { actionItemsPipeline } from '../pipelines/actionItems.pipeline.js';
 import { canEditMeeting, canViewMeeting } from '../services/collaboration.service.js';
 
 // Request types
@@ -107,7 +108,7 @@ export async function transcriptRoutes(fastify: FastifyInstance): Promise<void> 
       await meetingRepository.incrementTranscriptCount(request.params.id, inserted.length);
 
       // Trigger Real-Time Extraction with concatenated text
-      const chunkText = events.map(e => `${e.speaker}: ${e.content}`).join('\n');
+      const chunkText = events.map((e) => `${e.speaker}: ${e.content}`).join('\n');
       actionItemsPipeline.extractLiveChunk(request.params.id, chunkText).catch(console.error);
 
       return reply.status(201).send({

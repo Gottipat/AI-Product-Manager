@@ -47,10 +47,7 @@ function isPublicRoute(url: string): boolean {
  * Auth middleware hook
  * Verifies JWT token and attaches user to request
  */
-export async function authMiddleware(
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<void> {
+export async function authMiddleware(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   // Skip auth for public routes
   if (isPublicRoute(request.url)) {
     return;

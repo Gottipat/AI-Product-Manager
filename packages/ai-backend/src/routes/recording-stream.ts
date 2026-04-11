@@ -7,9 +7,10 @@
  * raw PCM data from the extension's ScriptProcessorNode.
  */
 
+import fs from 'fs';
+
 import { FastifyInstance } from 'fastify';
 import pino from 'pino';
-import fs from 'fs';
 
 import { getRecordingPath } from '../utils/storage.js';
 
