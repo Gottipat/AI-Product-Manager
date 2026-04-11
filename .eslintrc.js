@@ -48,5 +48,13 @@ module.exports = {
       },
     },
   ],
-  ignorePatterns: ['node_modules', 'dist', 'build', '*.js', '!.eslintrc.js'],
+  ignorePatterns: [
+    'node_modules',
+    'dist',
+    'build',
+    '*.js',
+    '!.eslintrc.js',
+    'packages/ai-backend/test-deepgram.ts',
+    'packages/ai-backend/test-deepgram2.ts',
+  ],
 };

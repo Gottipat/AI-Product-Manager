@@ -7,6 +7,7 @@ import { FastifyInstance } from 'fastify';
 
 import { actionItemsPipeline } from '../pipelines/actionItems.pipeline.js';
 import { momPipeline } from '../pipelines/mom.pipeline.js';
+import { canEditMeeting, canViewMeeting } from '../services/collaboration.service.js';
 import { ragService } from '../services/rag.service.js';
 
 // ============================================================================
@@ -38,6 +39,12 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
+      if (!request.user || !(await canEditMeeting(id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
+
       // Start async generation
       const result = await momPipeline.generate(id);
 
@@ -67,6 +74,10 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
+      if (!request.user || !(await canViewMeeting(id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this meeting' });
+      }
+
       const progress = momPipeline.getProgress(id);
 
       if (!progress) {
@@ -88,6 +99,12 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/meetings/:id/extract-items',
     async (request, reply) => {
       const { id } = request.params;
+
+      if (!request.user || !(await canEditMeeting(id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
 
       const result = await actionItemsPipeline.extract(id);
 

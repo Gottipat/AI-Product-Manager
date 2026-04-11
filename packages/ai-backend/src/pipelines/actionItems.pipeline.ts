@@ -59,7 +59,7 @@ export class ActionItemsPipeline {
 
       if (!transcriptText || transcriptText.trim().length === 0) {
         return {
-          success: true,  // It worked, there just wasn't anything to extract
+          success: true, // It worked, there just wasn't anything to extract
           itemsCreated: 0,
           items: [],
           processingTimeMs: Date.now() - startTime,
@@ -115,6 +115,15 @@ export class ActionItemsPipeline {
    */
   async extractFromText(transcriptText: string): Promise<ActionItem[]> {
     return await openaiService.extractActionItems(transcriptText);
+  }
+
+  /**
+   * Compatibility hook for legacy streaming transcript routes.
+   * We no longer run live AI extraction on every chunk, but the route still
+   * expects a promise-returning method it can fire and forget.
+   */
+  async extractLiveChunk(_meetingId: string, _chunkText: string): Promise<void> {
+    return;
   }
 
   private buildContext(

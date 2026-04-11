@@ -159,23 +159,32 @@ describe('MoM Pipeline', () => {
       expect(result.processingTimeMs).toBeGreaterThanOrEqual(0);
     });
 
-    it('should fail when no transcript available', async () => {
+    it('should create a placeholder MoM when no transcript is available', async () => {
       (transcriptRepository.findByMeetingId as Mock).mockResolvedValue([]);
+      (momRepository.upsert as Mock).mockResolvedValue({
+        id: 'mom-empty',
+        meetingId: 'meeting-123',
+      });
 
       const result = await momPipeline.generate('meeting-123');
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('No transcript available for this meeting');
-      expect(result.momId).toBeNull();
+      expect(result.success).toBe(true);
+      expect(result.momId).toBe('mom-empty');
+      expect(result.highlightsCreated).toBe(0);
+      expect(result.itemsCreated).toBe(0);
     });
 
-    it('should fail when transcript is null', async () => {
+    it('should create a placeholder MoM when transcript resolves to empty content', async () => {
       (transcriptRepository.findByMeetingId as Mock).mockResolvedValue([]);
+      (momRepository.upsert as Mock).mockResolvedValue({
+        id: 'mom-empty',
+        meetingId: 'meeting-123',
+      });
 
       const result = await momPipeline.generate('meeting-123');
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('No transcript available for this meeting');
+      expect(result.success).toBe(true);
+      expect(result.momId).toBe('mom-empty');
     });
 
     it('should handle OpenAI errors gracefully', async () => {

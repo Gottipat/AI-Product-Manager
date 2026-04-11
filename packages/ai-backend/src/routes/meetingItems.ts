@@ -9,6 +9,7 @@ import {
   meetingItemsRepository,
   type NewMeetingItem,
 } from '../db/repositories/meetingItems.repository.js';
+import { canEditMeeting, canViewMeeting } from '../services/collaboration.service.js';
 
 // Request types
 interface CreateItemBody {
@@ -62,6 +63,12 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
   fastify.post<{ Params: { id: string }; Body: CreateItemBody }>(
     '/api/v1/meetings/:id/items',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
+
       const {
         itemType,
         title,
@@ -102,6 +109,12 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
   fastify.post<{ Params: { id: string }; Body: CreateItemsBatchBody }>(
     '/api/v1/meetings/:id/items/batch',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
+
       const { items } = request.body;
 
       if (!items || !Array.isArray(items) || items.length === 0) {
@@ -135,7 +148,11 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
    */
   fastify.get<{ Params: { id: string }; Querystring: { type?: string } }>(
     '/api/v1/meetings/:id/items',
-    async (request) => {
+    async (request, reply) => {
+      if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this meeting' });
+      }
+
       const { type } = request.query;
 
       if (type) {
@@ -160,6 +177,9 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
     if (!item) {
       return reply.status(404).send({ error: 'Item not found' });
     }
+    if (!request.user || !(await canViewMeeting(item.meetingId, request.user))) {
+      return reply.status(403).send({ error: 'You do not have access to this item' });
+    }
     return { item };
   });
 
@@ -170,6 +190,15 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
   fastify.patch<{ Params: { id: string }; Body: UpdateItemBody }>(
     '/api/v1/items/:id',
     async (request, reply) => {
+      const existingItem = await meetingItemsRepository.findById(request.params.id);
+      if (!existingItem) {
+        return reply.status(404).send({ error: 'Item not found' });
+      }
+
+      if (!request.user || !(await canEditMeeting(existingItem.meetingId, request.user))) {
+        return reply.status(403).send({ error: 'You do not have permission to update this item' });
+      }
+
       const { title, description, assignee, assigneeEmail, dueDate, priority } = request.body;
 
       if (
@@ -190,12 +219,7 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
       if (assigneeEmail !== undefined) updateData.assigneeEmail = assigneeEmail;
       if (dueDate !== undefined) updateData.dueDate = dueDate;
       if (priority !== undefined) updateData.priority = priority;
-
       const item = await meetingItemsRepository.update(request.params.id, updateData);
-
-      if (!item) {
-        return reply.status(404).send({ error: 'Item not found' });
-      }
 
       return { item };
     }
@@ -208,16 +232,21 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
   fastify.patch<{ Params: { id: string }; Body: UpdateStatusBody }>(
     '/api/v1/items/:id/status',
     async (request, reply) => {
+      const existingItem = await meetingItemsRepository.findById(request.params.id);
+      if (!existingItem) {
+        return reply.status(404).send({ error: 'Item not found' });
+      }
+
+      if (!request.user || !(await canEditMeeting(existingItem.meetingId, request.user))) {
+        return reply.status(403).send({ error: 'You do not have permission to update this item' });
+      }
+
       const { status, updatedBy } = request.body;
 
       if (!status) {
         return reply.status(400).send({ error: 'status is required' });
       }
-
       const item = await meetingItemsRepository.updateStatus(request.params.id, status, updatedBy);
-      if (!item) {
-        return reply.status(404).send({ error: 'Item not found' });
-      }
       return { item };
     }
   );
@@ -226,7 +255,16 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
    * GET /api/v1/items/:id/progress
    * Get progress history for an item
    */
-  fastify.get<{ Params: { id: string } }>('/api/v1/items/:id/progress', async (request) => {
+  fastify.get<{ Params: { id: string } }>('/api/v1/items/:id/progress', async (request, reply) => {
+    const existingItem = await meetingItemsRepository.findById(request.params.id);
+    if (!existingItem) {
+      return reply.status(404).send({ error: 'Item not found' });
+    }
+
+    if (!request.user || !(await canViewMeeting(existingItem.meetingId, request.user))) {
+      return reply.status(403).send({ error: 'You do not have access to this item' });
+    }
+
     const updates = await meetingItemsRepository.getProgressHistory(request.params.id);
     return { updates };
   });
@@ -238,6 +276,15 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
   fastify.post<{ Params: { id: string }; Body: { tag: string } }>(
     '/api/v1/items/:id/tags',
     async (request, reply) => {
+      const existingItem = await meetingItemsRepository.findById(request.params.id);
+      if (!existingItem) {
+        return reply.status(404).send({ error: 'Item not found' });
+      }
+
+      if (!request.user || !(await canEditMeeting(existingItem.meetingId, request.user))) {
+        return reply.status(403).send({ error: 'You do not have permission to update this item' });
+      }
+
       const { tag } = request.body;
       if (!tag) {
         return reply.status(400).send({ error: 'tag is required' });
@@ -254,7 +301,14 @@ export async function meetingItemsRoutes(fastify: FastifyInstance): Promise<void
    */
   fastify.get<{ Params: { email: string } }>(
     '/api/v1/users/:email/action-items',
-    async (request) => {
+    async (request, reply) => {
+      if (
+        !request.user ||
+        request.user.email.toLowerCase() !== request.params.email.toLowerCase()
+      ) {
+        return reply.status(403).send({ error: 'You do not have access to these action items' });
+      }
+
       const items = await meetingItemsRepository.findPendingByAssignee(request.params.email);
       return { items };
     }

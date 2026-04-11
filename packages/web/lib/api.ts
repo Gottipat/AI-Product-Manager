@@ -59,9 +59,11 @@ export const projectsApi = {
   get: (id: string) =>
     apiFetch<{
       project: Project;
+      accessRole: ProjectAccessRole;
       meetings: Meeting[];
       items: MeetingItem[];
       moms: Record<string, MoM>;
+      collaborators: ProjectCollaborator[];
       stats: ProjectStats;
     }>(`/projects/${id}`),
 
@@ -85,6 +87,40 @@ export const projectsApi = {
 
   delete: (id: string) =>
     apiFetch<{ success: boolean }>(`/projects/${id}`, {
+      method: 'DELETE',
+    }),
+
+  listCollaborators: (id: string) =>
+    apiFetch<{ collaborators: ProjectCollaborator[] }>(`/projects/${id}/collaborators`),
+
+  inviteCollaborator: (
+    id: string,
+    data: { email: string; role: Exclude<ProjectAccessRole, 'owner' | null> }
+  ) =>
+    apiFetch<{
+      collaborator: ProjectCollaborator;
+      activatedImmediately: boolean;
+    }>(`/projects/${id}/collaborators`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export const collaboratorsApi = {
+  update: (
+    collaboratorId: string,
+    data: {
+      role?: Exclude<ProjectAccessRole, 'owner' | null>;
+      status?: ProjectCollaboratorStatus;
+    }
+  ) =>
+    apiFetch<{ collaborator: ProjectCollaborator }>(`/collaborators/${collaboratorId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (collaboratorId: string) =>
+    apiFetch<{ success: boolean }>(`/collaborators/${collaboratorId}`, {
       method: 'DELETE',
     }),
 };
@@ -214,18 +250,6 @@ export const momApi = {
     apiFetch<{ highlights: Highlight[] }>(`/meetings/${meetingId}/highlights`),
 };
 
-// Meetings API
-export const meetingsApi = {
-  list: (orgId: string) =>
-    apiFetch<{ meetings: Meeting[] }>(`/organizations/${orgId}/meetings`),
-    
-  get: (meetingId: string) =>
-    apiFetch<{ meeting: Meeting }>(`/meetings/${meetingId}`),
-    
-  getTranscripts: (meetingId: string) =>
-    apiFetch<{ events: TranscriptEvent[] }>(`/meetings/${meetingId}/transcripts`),
-};
-
 // Types
 export interface User {
   id: string;
@@ -243,10 +267,29 @@ export interface Project {
   googleMeetLink?: string;
   isRecurring: boolean;
   status: string;
+  accessRole?: ProjectAccessRole;
   meetingCount?: number;
   taskCount?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ProjectAccessRole = 'owner' | 'editor' | 'viewer' | null;
+export type ProjectCollaboratorStatus = 'pending' | 'active' | 'revoked';
+
+export interface ProjectCollaborator {
+  id: string;
+  projectId: string;
+  userId?: string | null;
+  email: string;
+  role: Exclude<ProjectAccessRole, null>;
+  status: ProjectCollaboratorStatus;
+  invitedBy?: string | null;
+  invitedAt?: string | null;
+  acceptedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  displayName?: string | null;
 }
 
 export interface CreateProjectInput {

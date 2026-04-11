@@ -3,7 +3,7 @@
  * @description JWT verification and user attachment to requests
  */
 
-import type { FastifyRequest, FastifyReply, HookHandlerDoneFunction } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 
 import * as authService from '../services/auth.service.js';
 
@@ -47,14 +47,9 @@ function isPublicRoute(url: string): boolean {
  * Auth middleware hook
  * Verifies JWT token and attaches user to request
  */
-export async function authMiddleware(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  done: HookHandlerDoneFunction
-): Promise<void> {
+export async function authMiddleware(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   // Skip auth for public routes
   if (isPublicRoute(request.url)) {
-    done();
     return;
   }
 
@@ -81,8 +76,6 @@ export async function authMiddleware(
 
     // Attach user to request
     request.user = payload;
-
-    done();
   } catch (error) {
     console.error('Auth middleware error:', error);
     reply.status(500).send({ error: 'Authentication error' });

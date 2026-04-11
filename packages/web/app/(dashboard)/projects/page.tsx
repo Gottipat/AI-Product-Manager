@@ -128,6 +128,17 @@ export default function ProjectsPage() {
                   </svg>
                 </div>
                 <div className="flex items-center gap-2">
+                  {project.accessRole && (
+                    <span className={`px-2 py-0.5 text-[11px] rounded-md border ${
+                      project.accessRole === 'owner'
+                        ? 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                        : project.accessRole === 'editor'
+                          ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                          : 'bg-slate-500/10 text-slate-300 border-slate-500/20'
+                    }`}>
+                      {project.accessRole}
+                    </span>
+                  )}
                   {project.isRecurring && (
                     <span className="px-2 py-0.5 text-[11px] rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20">
                       Recurring

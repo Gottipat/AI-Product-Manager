@@ -12,11 +12,11 @@
 import { FastifyInstance } from 'fastify';
 import pino from 'pino';
 
+import { meetingRepository } from '../db/repositories/meeting.repository.js';
 import {
   transcriptRepository,
   type NewTranscriptEvent,
 } from '../db/repositories/transcript.repository.js';
-import { meetingRepository } from '../db/repositories/meeting.repository.js';
 import { TranscriptionService, type TranscriptSegment } from '../services/transcription.service.js';
 
 const logger = pino({ name: 'audio-stream-route' });
@@ -56,9 +56,7 @@ export async function audioStreamRoutes(fastify: FastifyInstance): Promise<void>
       let participants: string[] = [];
       try {
         const meetingParticipants = await meetingRepository.getParticipants(meetingId);
-        participants = meetingParticipants
-          .filter((p) => !p.isBot)
-          .map((p) => p.displayName);
+        participants = meetingParticipants.filter((p) => !p.isBot).map((p) => p.displayName);
       } catch (error) {
         logger.debug({ error }, 'Could not fetch participants for speaker mapping');
       }
@@ -150,7 +148,10 @@ export async function audioStreamRoutes(fastify: FastifyInstance): Promise<void>
         // Binary audio data
         const binaryData = Buffer.isBuffer(data) ? data : Buffer.from(data);
         if (sequenceNumber % 50 === 0) {
-            logger.info({ meetingId, seq: sequenceNumber, bytes: binaryData.byteLength }, 'Received PCM chunk from extension');
+          logger.info(
+            { meetingId, seq: sequenceNumber, bytes: binaryData.byteLength },
+            'Received PCM chunk from extension'
+          );
         }
         transcriptionService.feedAudio(binaryData);
       });

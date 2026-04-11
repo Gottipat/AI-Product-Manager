@@ -71,10 +71,11 @@ export class MoMPipeline {
       if (!transcriptText || transcriptText.trim().length === 0) {
         // Save placeholder MoM
         const mom = await momRepository.upsert({
-            meetingId,
-            executiveSummary: 'This meeting was completely silent or captions were disabled, so no summary could be generated.',
-            detailedSummary: '',
-            aiModelVersion: 'gpt-4o',
+          meetingId,
+          executiveSummary:
+            'This meeting was completely silent or captions were disabled, so no summary could be generated.',
+          detailedSummary: '',
+          aiModelVersion: 'gpt-4o',
         });
 
         return {

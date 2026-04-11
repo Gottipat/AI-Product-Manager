@@ -10,6 +10,7 @@ import { join } from 'path';
 import { FastifyInstance } from 'fastify';
 
 import { meetingRepository, type NewMeeting } from '../db/repositories/meeting.repository.js';
+import { canEditMeeting, canViewMeeting } from '../services/collaboration.service.js';
 
 // Request/Response types
 interface CreateMeetingBody {
@@ -79,6 +80,10 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
    * Get meeting by ID with participants
    */
   fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id', async (request, reply) => {
+    if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+      return reply.status(403).send({ error: 'You do not have access to this meeting' });
+    }
+
     const meeting = await meetingRepository.findById(request.params.id);
     if (!meeting) {
       return reply.status(404).send({ error: 'Meeting not found' });
@@ -91,6 +96,10 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
    * Start a meeting (bot joining)
    */
   fastify.post<{ Params: { id: string } }>('/api/v1/meetings/:id/start', async (request, reply) => {
+    if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+      return reply.status(403).send({ error: 'You do not have permission to start this meeting' });
+    }
+
     const meeting = await meetingRepository.findById(request.params.id);
     if (!meeting) {
       return reply.status(404).send({ error: 'Meeting not found' });
@@ -107,6 +116,12 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.patch<{ Params: { id: string }; Body: UpdateStatusBody }>(
     '/api/v1/meetings/:id/status',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
+
       const { status } = request.body;
       if (!status) {
         return reply.status(400).send({ error: 'status is required' });
@@ -127,6 +142,12 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { id: string } }>(
     '/api/v1/meetings/:id/complete',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to complete this meeting' });
+      }
+
       const meeting = await meetingRepository.complete(request.params.id);
       if (!meeting) {
         return reply.status(404).send({ error: 'Meeting not found or not started' });
@@ -142,6 +163,12 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { id: string }; Body: AddParticipantBody }>(
     '/api/v1/meetings/:id/participants',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to update this meeting' });
+      }
+
       const { displayName, email, isBot } = request.body;
       if (!displayName) {
         return reply.status(400).send({ error: 'displayName is required' });
@@ -162,10 +189,17 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
    * GET /api/v1/meetings/:id/participants
    * Get all participants for a meeting
    */
-  fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id/participants', async (request) => {
-    const participants = await meetingRepository.getParticipants(request.params.id);
-    return { participants };
-  });
+  fastify.get<{ Params: { id: string } }>(
+    '/api/v1/meetings/:id/participants',
+    async (request, reply) => {
+      if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+        return reply.status(403).send({ error: 'You do not have access to this meeting' });
+      }
+
+      const participants = await meetingRepository.getParticipants(request.params.id);
+      return { participants };
+    }
+  );
 
   /**
    * POST /api/v1/meetings/:id/audio
@@ -174,6 +208,12 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { id: string }; Body: Buffer }>(
     '/api/v1/meetings/:id/audio',
     async (request, reply) => {
+      if (!request.user || !(await canEditMeeting(request.params.id, request.user))) {
+        return reply
+          .status(403)
+          .send({ error: 'You do not have permission to upload meeting audio' });
+      }
+
       const meetingId = request.params.id;
       const meeting = await meetingRepository.findById(meetingId);
 
@@ -206,6 +246,10 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
    * Serve the audio recording file for a meeting
    */
   fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id/audio', async (request, reply) => {
+    if (!request.user || !(await canViewMeeting(request.params.id, request.user))) {
+      return reply.status(403).send({ error: 'You do not have access to this meeting' });
+    }
+
     const meetingId = request.params.id;
     const recordingPath = join(process.cwd(), 'uploads', 'recordings', `${meetingId}.webm`);
 
@@ -233,25 +277,4 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
       return { meetings };
     }
   );
-
-  /**
-   * GET /api/v1/meetings/:id/audio
-   * Stream the raw audio recording of the meeting a webm file
-   */
-  fastify.get<{ Params: { id: string } }>('/api/v1/meetings/:id/audio', async (request, reply) => {
-    // We need fs here dynamically or we can import it at top.
-    const fs = await import('fs');
-    const { getRecordingPath } = await import('../utils/storage.js');
-    
-    const filePath = getRecordingPath(request.params.id);
-    if (!fs.existsSync(filePath)) {
-      return reply.status(404).send({ error: 'Audio recording not found for this meeting' });
-    }
-
-    const stat = fs.statSync(filePath);
-    return reply
-      .header('Content-Type', 'audio/webm')
-      .header('Content-Length', stat.size)
-      .send(fs.createReadStream(filePath));
-  });
 }

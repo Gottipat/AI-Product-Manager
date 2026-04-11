@@ -22,7 +22,12 @@ import { BackendClient } from './api/index.js';
 import { AuthManager } from './auth/index.js';
 import { BrowserLauncher } from './browser/index.js';
 import { CaptionParser, TranscriptBuffer } from './captions/index.js';
-import { MeetJoiner, CaptionsController, ParticipantTracker, AudioCaptureController } from './meet/index.js';
+import {
+  MeetJoiner,
+  CaptionsController,
+  ParticipantTracker,
+  AudioCaptureController,
+} from './meet/index.js';
 
 const logger = pino({
   name: 'bot-runner',

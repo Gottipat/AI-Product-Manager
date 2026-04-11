@@ -405,7 +405,7 @@ export class AudioCaptureController {
 
         logger.debug({ status, retry: retries }, 'Checking for audio tracks...');
 
-        if ((status as Record<string, unknown>).trackCount as number > 0) {
+        if (((status as Record<string, unknown>).trackCount as number) > 0) {
           const started = await this.page.evaluate(() => {
             // @ts-expect-error - calling injected function
             return window.__startAudioRecording?.() ?? false;
