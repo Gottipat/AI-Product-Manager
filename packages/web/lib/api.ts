@@ -4,10 +4,7 @@
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api/v1';
-export const BACKEND_BASE_URL = API_BASE_URL.replace('/api/v1', '');
-
-// Future: shared response wrapper
-// interface ApiResponse<T> { success?: boolean; error?: string; data?: T; }
+export const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:3002';
 
 /**
  * Generic fetch wrapper with error handling
@@ -141,11 +138,70 @@ export const botApi = {
 };
 
 // Transcript Upload API
+export interface TranscriptUploadOptions {
+  analysisMode?: 'general' | 'product_manager';
+  contextNote?: string;
+}
+
 export const transcriptApi = {
-  upload: (projectId: string, title: string, transcript: string) =>
+  upload: (
+    projectId: string,
+    title: string,
+    transcript: string,
+    options: TranscriptUploadOptions = {}
+  ) =>
     apiFetch<UploadResult>(`/projects/${projectId}/upload-transcript`, {
       method: 'POST',
-      body: JSON.stringify({ title, transcript }),
+      body: JSON.stringify({
+        title,
+        transcript,
+        analysisMode: options.analysisMode ?? 'product_manager',
+        contextNote: options.contextNote,
+      }),
+    }),
+};
+
+// Meetings API
+export const meetingsApi = {
+  list: (organizationId: string) =>
+    apiFetch<{ meetings: Meeting[] }>(`/organizations/${organizationId}/meetings`),
+
+  get: (id: string) =>
+    apiFetch<{ meeting: Meeting }>(`/meetings/${id}`),
+
+  getTranscripts: (id: string) =>
+    apiFetch<{ events: TranscriptEvent[] }>(`/meetings/${id}/transcripts`),
+
+  getItems: (id: string) =>
+    apiFetch<{ items: MeetingItem[] }>(`/meetings/${id}/items`),
+
+  generateMom: (id: string) =>
+    apiFetch<MoMGenerationResult>(`/meetings/${id}/generate-mom`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  extractItems: (id: string) =>
+    apiFetch<ItemExtractionResult>(`/meetings/${id}/extract-items`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  getAiStatus: (id: string) =>
+    apiFetch<AiStatus>(`/meetings/${id}/ai-status`),
+};
+
+export const meetingItemsApi = {
+  updateStatus: (id: string, status: MeetingItemStatus, updatedBy?: string) =>
+    apiFetch<{ item: MeetingItem }>(`/items/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, updatedBy }),
+    }),
+
+  update: (id: string, data: MeetingItemUpdateInput) =>
+    apiFetch<{ item: MeetingItem }>(`/items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     }),
 };
 
@@ -153,6 +209,9 @@ export const transcriptApi = {
 export const momApi = {
   getByMeeting: (meetingId: string) =>
     apiFetch<{ mom: MoM }>(`/meetings/${meetingId}/mom`),
+
+  getHighlights: (meetingId: string) =>
+    apiFetch<{ highlights: Highlight[] }>(`/meetings/${meetingId}/highlights`),
 };
 
 // Meetings API
@@ -200,27 +259,66 @@ export interface CreateProjectInput {
 export interface Meeting {
   id: string;
   title: string;
-  organizationId?: string;
+  projectId?: string | null;
   startTime?: string;
   endTime?: string;
   status: string;
   durationMinutes?: number;
   captureSource?: string;
   totalTranscriptEvents?: number;
-  createdAt?: string;
+  project?: {
+    id: string;
+    name: string;
+  } | null;
 }
+
+export interface TranscriptEvent {
+  id: string;
+  speaker: string;
+  content: string;
+  sequenceNumber: number;
+  isFinal: boolean;
+  confidence?: number;
+  capturedAt: string;
+}
+
+export interface AiStatus {
+  status: 'idle' | 'pending' | 'fetching_transcript' | 'generating' | 'saving' | 'completed' | 'error';
+  progress?: number;
+  message: string;
+}
+
+export type MeetingItemStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'blocked'
+  | 'deferred'
+  | 'cancelled';
 
 export interface MeetingItem {
   id: string;
+  meetingId: string;
+  projectId?: string;
   itemType: string;
   title: string;
   description?: string;
   assignee?: string;
   assigneeEmail?: string;
-  status: string;
+  status: MeetingItemStatus;
   priority?: string;
   dueDate?: string;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface MeetingItemUpdateInput {
+  title?: string;
+  description?: string | null;
+  assignee?: string | null;
+  assigneeEmail?: string | null;
+  dueDate?: string | null;
+  priority?: 'low' | 'medium' | 'high' | 'critical' | null;
 }
 
 export interface ProjectStats {
@@ -249,6 +347,39 @@ export interface MoM {
   generatedAt: string;
 }
 
+export interface MoMGenerationResult {
+  success: boolean;
+  momId: string | null;
+  highlightsCreated: number;
+  itemsCreated: number;
+  processingTimeMs: number;
+  error?: string;
+}
+
+export interface ItemExtractionResult {
+  success: boolean;
+  itemsCreated: number;
+  stats: {
+    total: number;
+    byType: Record<string, number>;
+    withAssignee: number;
+    withDueDate: number;
+  };
+  processingTimeMs: number;
+  error?: string;
+}
+
+export interface Highlight {
+  id: string;
+  meetingId: string;
+  momId?: string;
+  highlightType: string;
+  content: string;
+  speaker?: string;
+  importance?: number;
+  keywords?: string[];
+}
+
 export interface UploadResult {
   success: boolean;
   meetingId: string;
@@ -262,16 +393,3 @@ export interface UploadResult {
     error?: string;
   };
 }
-
-export interface TranscriptEvent {
-  id: string;
-  meetingId: string;
-  speaker: string;
-  content: string;
-  sequenceNumber: number;
-  isFinal: boolean;
-  confidence?: number;
-  capturedAt: string;
-  createdAt: string;
-}
-

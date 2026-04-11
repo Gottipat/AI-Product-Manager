@@ -1,0 +1,21 @@
+Started at: 2026-04-21 10:00 AM
+
+[10:00 AM] Kumar: Today we need to decide whether beta on April 29 is still realistic.
+[10:01 AM] Subhash: The fallback proposal is done. We can implement guest sessions without the identity sandbox, but it is not ideal and adds cleanup work later.
+[10:02 AM] Anita: Does that mean engineering can move forward?
+[10:02 AM] Subhash: Yes, but with moderate risk.
+[10:03 AM] Priya: Design is stable. I do not have new blockers.
+[10:04 AM] Neha: The dashboard is close, but I have not validated the event mapping yet. I can get validation done by Wednesday, April 23.
+[10:05 AM] Arjun: QA has started drafting cases based on the fallback design, but we still need a clear answer on duplicate account handling.
+[10:06 AM] Maya: Support needs prepared responses if users create a guest session and later convert into a full account. We are getting ahead of ourselves otherwise.
+[10:07 AM] Kumar: Fair. Maya, can you draft support macros by Thursday, April 24?
+[10:08 AM] Maya: Yes, I can do that.
+[10:09 AM] Rahul: I still have not finished the compliance review for storing guest email addresses. I need the final persistence behavior from engineering first.
+[10:10 AM] Kumar: Noted. We still have the open compliance question.
+[10:11 AM] Anita: I’m noticing we are discussing launch risk, but I did not hear a status on the pricing and finance alignment or the final taxonomy commitment.
+[10:12 AM] Kumar: The pricing conversation is still not fully closed. I have a follow-up with finance, but I do not have the final answer yet.
+[10:13 AM] Subhash: Taxonomy is implemented enough for current work, but I have not done the final cleanup pass.
+[10:14 AM] Neha: If taxonomy cleanup slips again, I may need to rework the dashboard event labels.
+[10:15 AM] Arjun: Then April 29 sounds optimistic.
+[10:16 AM] Kumar: Agreed. Let’s call beta date at risk unless dashboard validation, compliance review, and support prep are all done this week.
+[10:17 AM] Kumar: We also still have an unresolved product question: how do we measure whether guest checkout cannibalizes intentional sign-ups rather than improving activation?

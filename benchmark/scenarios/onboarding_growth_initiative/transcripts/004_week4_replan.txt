@@ -1,0 +1,20 @@
+Started at: 2026-04-28 10:00 AM
+
+[10:00 AM] Kumar: We need to replan. April 29 beta is no longer realistic, so today is about a controlled reset, not wishful thinking.
+[10:01 AM] Anita: Let’s start with what is actually done.
+[10:02 AM] Kumar: Finance approved the pricing experiment guardrails. We can expose limited pricing cues before account creation as long as the experiment buckets stay consistent.
+[10:03 AM] Subhash: The taxonomy cleanup is done and merged. Engineering is now using the fallback guest session approach because identity is still partially blocked.
+[10:04 AM] Neha: The dashboard still has data discrepancies between guest session starts and converted accounts. I need one more pass with engineering before I call it reliable.
+[10:05 AM] Priya: Design work is complete from my side.
+[10:06 AM] Maya: Support macros are not finished. I got pulled into an escalation last week. I can get them done before next Monday.
+[10:07 AM] Arjun: QA has one major concern. The duplicate account path is still not stable enough for beta.
+[10:08 AM] Rahul: Compliance review is still open. Specifically, I need an answer on guest email retention and whether abandoned guest sessions are purged automatically.
+[10:09 AM] Kumar: Rahul, can you close that by Wednesday, April 30?
+[10:09 AM] Rahul: Yes, assuming engineering sends the retention behavior today.
+[10:10 AM] Subhash: I can send that today.
+[10:11 AM] Kumar: New target for launch readiness review is Tuesday, May 6.
+[10:12 AM] Maya: We also need a support training session before launch if guest checkout goes public.
+[10:13 AM] Kumar: Agreed. I will coordinate launch comms and the support training plan with customer success by Friday, May 2.
+[10:14 AM] Anita: I want a clean launch checklist next week with owner names, not just discussion.
+[10:15 AM] Kumar: Good. Current open items are dashboard reliability, support macros, compliance signoff, duplicate account QA risk, and launch comms coordination.
+[10:16 AM] Arjun: Also, the original question on whether guest checkout is phase one is now effectively answered. We are shipping it in beta, but behind guardrails.

@@ -1,0 +1,18 @@
+Started at: 2026-04-07 10:00 AM
+
+[10:00 AM] Kumar: Thanks everyone. The goal today is to align on the onboarding growth initiative for Q2. We want to improve activation for new self-serve users and reduce drop-off before account completion.
+[10:01 AM] Kumar: The proposed scope has two tracks. First, guest checkout for onboarding. Second, better funnel instrumentation so we can see where users abandon the flow.
+[10:02 AM] Priya: From design, I can get the first-pass guest checkout wireframes done by Thursday, April 10.
+[10:03 AM] Subhash: Engineering can start once the wireframes are in. I’ll own the event taxonomy doc for analytics, and I can have that ready by Friday, April 11.
+[10:04 AM] Neha: I’ll take the onboarding dashboard. I can get the first version ready by Saturday, April 12, assuming the taxonomy is stable.
+[10:05 AM] Kumar: Good. I also need to align with finance on the pricing experiment guardrails because we do not want guest checkout to distort conversion reporting. I’ll take that and close it by Monday, April 14.
+[10:06 AM] Maya: Support will need early notice if guest checkout changes how users contact us or how duplicate accounts are created.
+[10:07 AM] Arjun: QA will need a clear decision on whether guest checkout is in phase one. Otherwise we cannot finalize the test matrix.
+[10:08 AM] Kumar: That is still open. The question is whether guest checkout should ship in phase one or stay behind a flag until after beta feedback.
+[10:09 AM] Rahul: I also need to review whether we are storing guest email addresses before full account creation. That might have compliance implications.
+[10:10 AM] Subhash: There is one external dependency. The identity team promised their lightweight session API by April 15. Without that, guest checkout implementation becomes more complex.
+[10:11 AM] Anita: So the risk is clear. If identity slips, beta scope is at risk.
+[10:12 AM] Kumar: Correct. Let’s target beta readiness review on April 29 for now, but it depends on identity, analytics, and the phase one decision.
+[10:13 AM] Priya: I also want clarity on whether the guest flow should show pricing before account creation or after.
+[10:14 AM] Kumar: Good call. I’ll bundle that into the finance and pricing discussion.
+[10:15 AM] Kumar: Summarizing owners. Priya on wireframes by April 10. Subhash on event taxonomy by April 11. Neha on dashboard by April 12. Kumar on finance and pricing guardrails by April 14. Rahul to review guest email storage implications. Open question remains whether guest checkout is in phase one.

@@ -7,6 +7,7 @@ import { eq, desc, or, and, isNull } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 
+import { DEFAULT_DEV_ORG_ID } from '../db/bootstrap.js';
 import { db } from '../db/index.js';
 import { meetingItems } from '../db/schema/meetingItems.js';
 import { meetings } from '../db/schema/meetings.js';
@@ -79,12 +80,10 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
     try {
       const body = createProjectSchema.parse(request.body);
 
-      const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
-
       const [project] = await db
         .insert(projects)
         .values({
-          organizationId: DEV_ORG_ID,
+          organizationId: DEFAULT_DEV_ORG_ID,
           name: body.name,
           description: body.description ?? null,
           googleMeetLink: body.googleMeetLink ?? null,

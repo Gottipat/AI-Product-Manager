@@ -9,6 +9,7 @@ import { FastifyInstance } from 'fastify';
 import { aiRoutes } from './ai.js';
 import { audioStreamRoutes } from './audio-stream.js';
 import { authRoutes } from './auth.js';
+import { benchmarkRoutes } from './benchmark.js';
 import { botRoutes } from './bot.js';
 import { extensionRoutes } from './extension.js';
 import { meetingItemsRoutes } from './meetingItems.js';
@@ -29,6 +30,7 @@ export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   await authRoutes(fastify);
   await projectRoutes(fastify);
   await aiRoutes(fastify);
+  await benchmarkRoutes(fastify);
   await meetingRoutes(fastify);
   await transcriptRoutes(fastify);
   await momRoutes(fastify);
