@@ -6,8 +6,8 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
-import { projects } from './organizations.js';
-import { users } from './users.js';
+import { projects } from './organizations';
+import { users } from './users';
 
 export const projectCollaborators = pgTable(
   'project_collaborators',

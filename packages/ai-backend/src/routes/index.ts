@@ -6,6 +6,7 @@
 import cookie from '@fastify/cookie';
 import { FastifyInstance } from 'fastify';
 
+import { authMiddleware } from '../middleware/auth.middleware.js';
 import { aiRoutes } from './ai.js';
 import { authRoutes } from './auth.js';
 import { benchmarkRoutes } from './benchmark.js';
@@ -24,6 +25,8 @@ export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(cookie, {
     secret: process.env.COOKIE_SECRET || 'change-this-cookie-secret',
   });
+
+  fastify.addHook('preHandler', authMiddleware);
 
   // Register all route modules
   await authRoutes(fastify);
