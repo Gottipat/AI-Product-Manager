@@ -72,28 +72,40 @@ export class BrowserLauncher {
         // === MEDIA PERMISSIONS ===
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
+        // === AUDIO CAPTURE ===
+        '--autoplay-policy=no-user-gesture-required',
+        '--enable-audio-output',
         ...(this.options.args ?? []),
       ],
     };
 
-    this.browser = await chromium.launch(launchOptions);
-
-    // Create a completely fresh browser context (like incognito)
-    // This ensures no cookies, localStorage, or session data from previous runs
-    this.context = await this.browser.newContext({
+    const contextOptions = {
       // Use null viewport to let the browser use its maximized window size
       // This ensures all Meet UI elements are visible
       viewport: null,
       userAgent: BOT_CONFIG.USER_AGENT,
       // Grant permissions for media
-      permissions: ['microphone', 'camera'],
+      permissions: ['microphone', 'camera'] as string[],
       // Ignore HTTPS errors (useful for local development)
       ignoreHTTPSErrors: true,
       // Set locale for consistent behavior
       locale: 'en-US',
       // Disable color scheme preference to avoid dark mode issues
-      colorScheme: 'light',
-    });
+      colorScheme: 'light' as const,
+    };
+
+    if (this.options.userDataDir) {
+      logger.info({ dir: this.options.userDataDir }, 'Launching with persistent session context');
+      this.context = await chromium.launchPersistentContext(this.options.userDataDir, {
+        ...launchOptions,
+        ...contextOptions,
+      });
+      this.browser = this.context.browser();
+    } else {
+      logger.info('Launching with fresh incognito context');
+      this.browser = await chromium.launch(launchOptions);
+      this.context = await this.browser.newContext(contextOptions);
+    }
 
     // Comprehensive stealth configuration to avoid bot detection
     await this.context.addInitScript(() => {

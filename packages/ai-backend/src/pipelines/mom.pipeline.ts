@@ -69,7 +69,21 @@ export class MoMPipeline {
       const transcriptText = formatTranscriptForAI(transcriptEvents);
 
       if (!transcriptText || transcriptText.trim().length === 0) {
-        throw new Error('No transcript available for this meeting');
+        // Save placeholder MoM
+        const mom = await momRepository.upsert({
+            meetingId,
+            executiveSummary: 'This meeting was completely silent or captions were disabled, so no summary could be generated.',
+            detailedSummary: '',
+            aiModelVersion: 'gpt-4o',
+        });
+
+        return {
+          success: true,
+          momId: mom?.id || null,
+          highlightsCreated: 0,
+          itemsCreated: 0,
+          processingTimeMs: Date.now() - startTime,
+        };
       }
 
       const projectContext = await productManagerService.buildProjectContext({

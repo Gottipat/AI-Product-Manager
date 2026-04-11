@@ -3,7 +3,7 @@
  * @description CRUD operations for projects with meeting link support
  */
 
-import { eq, desc, or } from 'drizzle-orm';
+import { eq, desc, or, and, isNull } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 
@@ -147,7 +147,12 @@ export async function projectRoutes(server: FastifyInstance): Promise<void> {
       // Get meetings associated with this project (by projectId OR googleMeetLink)
       const conditions = [eq(meetings.projectId, project.id)];
       if (project.googleMeetLink) {
-        conditions.push(eq(meetings.googleMeetLink, project.googleMeetLink));
+        conditions.push(
+            and(
+                eq(meetings.googleMeetLink, project.googleMeetLink),
+                isNull(meetings.projectId)
+            )
+        );
       }
 
       const projectMeetings = await db

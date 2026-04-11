@@ -58,7 +58,12 @@ export class ActionItemsPipeline {
       const transcriptText = formatTranscriptForAI(transcriptEvents);
 
       if (!transcriptText || transcriptText.trim().length === 0) {
-        throw new Error('No transcript available for this meeting');
+        return {
+          success: true,  // It worked, there just wasn't anything to extract
+          itemsCreated: 0,
+          items: [],
+          processingTimeMs: Date.now() - startTime,
+        };
       }
 
       const projectContext = await productManagerService.buildProjectContext({
