@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# @meeting-ai/web
 
-## Getting Started
+The web dashboard for the AI Product Manager system.
 
-First, run the development server:
+## Purpose
+
+This package is the main reviewer-facing surface of the project. It provides:
+
+- authentication and onboarding
+- project creation and navigation
+- transcript upload
+- meeting detail views
+- generated Minutes of Meeting
+- project-level action-item workspace
+
+## Main Screens
+
+- `Projects`
+  Create projects and manage recurring meeting work
+- `Project workspace`
+  Upload transcripts, review items, and navigate related meetings
+- `Meeting detail`
+  Review transcript, MoM, highlights, and extracted items
+
+## Capture Method Guidance
+
+The UI is intentionally explicit about capture maturity:
+
+- `Transcript upload` is the recommended and most reliable path
+- `Join with bot` is preview-stage
+- `Chrome extension` is in progress
+
+That messaging exists so reviewers understand what is stable versus
+experimental.
+
+## Run Locally
+
+From the repo root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm --filter @meeting-ai/web dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The web app expects the backend API to be available. For the easiest local run,
+use Docker from the repo root:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build -d
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Then open:
 
-## Learn More
+- `http://localhost:3001`
 
-To learn more about Next.js, take a look at the following resources:
+## Useful Commands
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm --filter @meeting-ai/web dev
+pnpm --filter @meeting-ai/web build
+pnpm --filter @meeting-ai/web exec tsc --noEmit
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- This package is designed to surface the strongest parts of the system first.
+- For the best professor/demo flow, use transcript upload and project-level item
+  review rather than starting with bot or extension capture.

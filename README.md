@@ -1,278 +1,339 @@
-# Context-Aware AI Meeting System
+# AI Product Manager for Recurring Meetings
 
-> Longitudinal analysis of recurring meetings with AI-powered insights and AI
-> Product Manager accountability
+An end-to-end system for turning recurring product meetings into structured
+project memory, accountable action items, and context-aware Minutes of Meeting
+(MoM).
 
-[![CI Pipeline](https://github.com/YOUR_ORG/AI-Product-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/AI-Product-Manager/actions/workflows/ci.yml)
+This project is not just an AI note taker. The goal is to build an
+`AI Product Manager` that remembers what happened in previous meetings, tracks
+open questions and deadlines, and helps teams review delivery continuity over
+time.
 
-## Overview
+## What This Project Does
 
-A system that joins Google Meet sessions as a bot participant, captures live
-captions with speaker attribution, and streams transcripts to an AI backend for
-extraction, MoM generation, and longitudinal task tracking.
+The system supports three capture paths:
 
-### Key Features
+- `Transcript upload`
+  The most reliable path today. Upload an existing transcript and generate
+  contextual MoM, extracted items, and longitudinal accountability.
+- `Join with bot`
+  A Playwright-based Google Meet bot that can join meetings and capture live
+  captions. Useful for demos and experimentation, but still reliability-limited
+  by meeting permissions, waiting rooms, and Google auth flows.
+- `Chrome extension`
+  A browser-based Meet capture path that is under active development. Audio
+  capture is supported. Speaker-attributed multi-person transcript extraction is
+  still being improved.
 
-- 🤖 **Bot Participant**: Joins meetings when invited (no covert recording)
-- 📝 **Live Captions**: Captures speaker-attributed transcripts in real-time
-- 🧠 **AI Extraction**: Identifies decisions, action items, and key points
-- 💻 **Web Dashboard**: Project management and meeting insights interface
-- 🔐 **Authentication**: Secure user access and role-based permissions
-- 📋 **MoM Generation**: Produces structured Minutes of Meeting
-- 📊 **Progress Tracking**: Tracks action items across recurring meetings
-- 🔍 **RAG System**: Contextual retrieval for historical meeting data
+## Why This Matters
 
-## Architecture
+Typical AI meeting assistants summarize a single meeting well, but they often
+lose continuity across weeks. This system is designed to answer harder project
+questions:
 
+- What was promised last week, and is it still open?
+- Which owner missed a deadline without giving a status update?
+- Which product question is still unresolved?
+- Did the team actually close the launch blocker they discussed earlier?
+- Is the project becoming more ready, or just generating more meeting notes?
+
+## Core Outcomes
+
+- Persistent meeting memory across a project
+- Context-aware MoM generation
+- Structured extraction of action items, decisions, blockers, and open questions
+- Accountability tracking by owner, team, priority, and due date
+- A benchmark harness that compares the stateful system against a
+  transcript-only baseline
+
+## Current Product Status
+
+What is strongest today:
+
+- Transcript upload workflow
+- Context-aware MoM generation
+- Project-level item tracking and accountability
+- Benchmark and research evaluation scaffolding
+- Dockerized local setup for teammates and reviewers
+
+What is still in progress:
+
+- Bot-based meeting joining reliability
+- Chrome extension multi-speaker speaker attribution
+- Audio-transcription experimentation beyond transcript/caption capture
+
+Professor/reviewer note:
+
+- For the most reliable demo, use `transcript upload`.
+- Treat `bot join` and `extension capture` as experimental/preview features.
+
+See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for a fuller summary of
+what has been achieved and what is still being improved.
+
+## Monorepo Structure
+
+```text
+AI-Product-Manager/
+├── packages/
+│   ├── ai-backend/        Fastify API, AI pipelines, database access
+│   ├── web/               Next.js dashboard and project workspace
+│   ├── bot-runner/        Playwright-based Google Meet bot
+│   ├── chrome-extension/  Browser-based Meet capture
+│   └── shared/            Shared schemas, contracts, and types
+├── benchmark/             Longitudinal benchmark harness
+├── docs/                  Project, research, and operational docs
+├── docker/                Dockerfiles and runtime setup
+└── scripts/               Utility scripts
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Meeting AI System                         │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─────────────┐       ┌──────────────────┐                      │
-│  │ Google Meet │       │  Web Dashboard   │                      │
-│  │   Session   │       │ (Next.js/React)  │                      │
-│  └──────┬──────┘       └────────┬─────────┘                      │
-│         │ Join                  │ REST/Auth                      │
-│         ▼                       ▼                                │
-│  ┌─────────────┐       ┌──────────────────┐                      │
-│  │ Bot Runner  │──────▶│    AI Backend    │                      │
-│  └─────────────┘       └────────┬─────────┘                      │
-│                                 │                                │
-│                        ┌────────▼─────────┐                      │
-│                        │    PostgreSQL    │                      │
-│                        └──────────────────┘                      │
-└──────────────────────────────────────────────────────────────────┘
-```
 
-## Team Ownership
+## Tech Stack
 
-| Package                  | Owner  | Description                        |
-| ------------------------ | ------ | ---------------------------------- |
-| `@meeting-ai/shared`     | Both   | Types, schemas, API contracts      |
-| `@meeting-ai/web`        | You    | Next.js dashboard & auth interface |
-| `@meeting-ai/bot-runner` | Friend | Playwright bot, caption capture    |
-| `@meeting-ai/ai-backend` | You    | AI extraction, MoM, RAG            |
+- `Next.js` and `React` for the dashboard
+- `Fastify` and `TypeScript` for the backend
+- `PostgreSQL` and `Drizzle` for persistence
+- `OpenAI` for MoM generation and structured extraction
+- `Playwright` for the bot-based Meet capture path
+- `Chrome Extension APIs` for in-browser Meet capture
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm 8+
-- Docker Desktop or Docker Engine with Compose support for the recommended local setup
-- An `OPENAI_API_KEY`
+- `Node.js 20+`
+- `pnpm 8+`
+- `Docker Desktop` or Docker Engine with Compose support
+- `OPENAI_API_KEY`
 
-### Setup
+### Recommended Setup: Docker
 
-```bash
-# Clone repository
-git clone https://github.com/YOUR_ORG/AI-Product-Manager.git
-cd AI-Product-Manager
-
-# Install dependencies
-pnpm install
-
-# Build all packages
-pnpm build
-```
-
-### Recommended: Run The App With Docker
-
-This is the easiest and most reliable way for teammates to run the full stack.
-You do not need PostgreSQL installed locally.
+This is the easiest path for teammates, reviewers, and professor demos.
 
 ```bash
 cp .env.docker.example .env.docker
 docker compose --env-file .env.docker up --build -d
 ```
 
-Set at least:
+Then open:
+
+- Web app: `http://localhost:3001`
+- API: `http://localhost:3002`
+- Health check: `http://localhost:3002/api/v1/health`
+
+Useful commands:
+
+```bash
+pnpm docker:up
+pnpm docker:down
+docker compose --env-file .env.docker logs -f
+docker compose --env-file .env.docker up -d --build ai-backend
+docker compose --env-file .env.docker up -d --build web
+```
+
+Full guide:
+
+- [docs/DOCKER_RUN.md](docs/DOCKER_RUN.md)
+
+### Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Common package-level commands:
+
+```bash
+pnpm --filter @meeting-ai/ai-backend dev
+pnpm --filter @meeting-ai/web dev
+pnpm --filter @meeting-ai/bot-runner dev
+```
+
+Local environment details:
+
+- [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)
+- [docs/README.md](docs/README.md)
+
+## Environment Variables
+
+### Required For The Normal Demo Flow
+
+| Variable         | Required | Purpose                                            |
+| ---------------- | -------- | -------------------------------------------------- |
+| `OPENAI_API_KEY` | Yes      | Generates contextual MoM and structured extraction |
+
+### Included With Safe Local Docker Defaults
+
+| Variable        | Required            | Purpose               |
+| --------------- | ------------------- | --------------------- |
+| `JWT_SECRET`    | No for local Docker | JWT signing secret    |
+| `COOKIE_SECRET` | No for local Docker | Cookie signing secret |
+
+### Optional, Depending On The Capture Method
+
+| Variable           | Required | Purpose                                             |
+| ------------------ | -------- | --------------------------------------------------- |
+| `GOOGLE_EMAIL`     | Optional | Used by the bot-runner for Google auth              |
+| `GOOGLE_PASSWORD`  | Optional | Used by the bot-runner for Google auth              |
+| `DEEPGRAM_API_KEY` | Optional | Only needed for audio transcription experimentation |
+
+### Minimal `.env.docker`
 
 ```env
 OPENAI_API_KEY=sk-your-openai-key
 ```
 
-Then open:
+You can leave the dev-only `JWT_SECRET` and `COOKIE_SECRET` defaults as-is for
+local Docker runs.
 
-- Web app: `http://localhost:3001`
-- API: `http://localhost:3002`
-- API health: `http://localhost:3002/api/v1/health`
+## How To Use The App
 
-Useful Docker commands:
+Recommended professor/demo flow:
 
-```bash
-# Stop the stack
-docker compose --env-file .env.docker down
+1. Start the app with Docker.
+2. Sign in to the web app.
+3. Create a project.
+4. Upload a transcript through the project workspace.
+5. Review the generated MoM, extracted items, and project item board.
+6. Open the next meeting in the same project to show continuity across meetings.
 
-# Follow logs
-docker compose --env-file .env.docker logs -f
+Stable demo path:
 
-# Rebuild the backend only
-docker compose --env-file .env.docker up -d --build ai-backend
-```
+- `Projects -> Upload transcript -> Generate MoM -> Review action items`
 
-Full Docker instructions: [docs/DOCKER_RUN.md](docs/DOCKER_RUN.md)
+Preview/experimental paths:
 
-### Alternative: Local Development
+- `Join with bot`
+- `Chrome extension capture`
 
-```bash
-# Start all packages in dev mode
-pnpm dev
-
-# Run specific packages
-pnpm --filter @meeting-ai/web dev
-pnpm --filter @meeting-ai/ai-backend dev
-pnpm --filter @meeting-ai/bot-runner dev
-```
-
-For local dev without Docker, see [docs/README.md](docs/README.md) and
-[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
+See [docs/REVIEW_GUIDE.md](docs/REVIEW_GUIDE.md) for a reviewer-friendly
+walkthrough.
 
 ## Testing
 
 ### Core Commands
 
 ```bash
-# Run all workspace tests
 pnpm test
-
-# Run all typechecks
 pnpm typecheck
-
-# Run lint
 pnpm lint
+pnpm format:check
+pnpm pre-push
 ```
 
 ### Focused Commands
 
 ```bash
-# Backend tests
 pnpm --filter @meeting-ai/ai-backend test
-
-# Backend typecheck
 pnpm --filter @meeting-ai/ai-backend typecheck
-
-# Frontend typecheck
-pnpm --filter web exec tsc --noEmit
-
-# Shared package tests
-pnpm --filter @meeting-ai/shared test
+pnpm --filter @meeting-ai/web exec tsc --noEmit
+pnpm benchmark:typecheck
 ```
 
-Expected results:
+Expected outcome:
 
-- `pnpm test` should complete without failures
-- `pnpm typecheck` should complete without TypeScript errors
-- `pnpm lint` may show existing warnings in some packages, but should not fail on new work
+- `pnpm test` should pass
+- `pnpm typecheck` should pass
+- `pnpm format:check` should pass
+- `pnpm pre-push` should pass
+- `pnpm lint` may still show warnings in some areas, but should not fail
+
+More detail:
+
+- [docs/TESTING.md](docs/TESTING.md)
+- [docs/TOOLING.md](docs/TOOLING.md)
 
 ## Benchmark Evaluation
 
-The repo includes a longitudinal benchmark harness that compares the current
-stateful AI Product Manager system against a transcript-only baseline.
+This repo includes a longitudinal benchmark harness that compares:
+
+- `current_system`
+  The full stateful AI Product Manager workflow with project memory
+- `transcript_only`
+  A baseline that only uses the current meeting transcript
 
 ### Benchmark Commands
 
 ```bash
-# Typecheck the benchmark harness
 pnpm benchmark:typecheck
-
-# Run the current stateful system only
 pnpm benchmark:longitudinal
-
-# Compare current system vs transcript-only baseline
 pnpm benchmark:compare
-
-# Run a specific scenario
 pnpm benchmark:longitudinal -- benchmark/scenarios/onboarding_growth_initiative/scenario.json
-
-# Run only the transcript-only baseline
 pnpm benchmark:longitudinal -- --system transcript_only benchmark/scenarios/onboarding_growth_initiative/scenario.json
 ```
 
-### When Running Against Docker
+### Reports
 
-If host networking is awkward, run the benchmark inside the backend container:
+- Host output: [benchmark/reports](benchmark/reports)
+- Docker backend container output: `/app/benchmark/reports`
 
-```bash
-docker exec meeting-ai-backend \
-  pnpm --filter @meeting-ai/ai-backend exec tsx ../../benchmark/run-longitudinal-eval.ts --system all
-```
-
-### Benchmark Reports
-
-Reports are written to:
-
-- Host runs: [`benchmark/reports`](benchmark/reports)
-- Runs inside the backend container: `/app/benchmark/reports`
-
-Each report is a timestamped JSON file such as:
-
-```text
-benchmark/reports/2026-04-05T08-17-01-695Z-onboarding_growth_initiative_v1.json
-```
-
-### Expected Benchmark Result On This Branch
-
-For the built-in `onboarding_growth_initiative` scenario, the expected
-comparison result on `feat/accountability-ai-pm` is:
+Expected result for the built-in comparison scenario:
 
 - `current_system`: `38 passed / 0 failed`
 - `transcript_only`: `32 passed / 6 failed`
 
-That result is important: it shows the stateful project-memory system
-outperforming raw transcript-only summarization on continuity and
-accountability checks.
+This benchmark is important because it demonstrates that persistent project
+memory outperforms raw transcript-only summarization on continuity,
+accountability, and final project-state checks.
 
-## Project Structure
+More detail:
 
-```
-AI-Product-Manager/
-├── packages/
-│   ├── shared/           # Shared types & contracts
-│   ├── web/              # Next.js Dashboard
-│   ├── bot-runner/       # Playwright bot
-│   └── ai-backend/       # AI processing server
-├── docs/                 # Documentation (see docs/README.md)
-├── .github/              # GitHub workflows
-└── scripts/              # Utility scripts
-```
+- [benchmark/README.md](benchmark/README.md)
+- [docs/BENCHMARK_SLIDE_SUMMARY.md](docs/BENCHMARK_SLIDE_SUMMARY.md)
+- [docs/EVAL_RUBRIC.md](docs/EVAL_RUBRIC.md)
 
-## 📚 Documentation
+## What We Achieved
 
-**[📖 View Full Documentation →](docs/README.md)**
+- Built a multi-package product around recurring-meeting intelligence
+- Added contextual MoM generation grounded in prior project state
+- Added action-item continuity, accountability, and due-date awareness
+- Added a Notion-like item workspace for reviewing and updating work
+- Dockerized the stack for easier local setup
+- Added a benchmark harness for longitudinal evaluation
+- Framed the system as a researchable `AI Product Manager` problem, not just a
+  meeting-summary tool
 
-| Doc                                      | Purpose              |
-| ---------------------------------------- | -------------------- |
-| [Architecture](docs/ARCHITECTURE.md)     | System design        |
-| [Database](docs/database/OVERVIEW.md)    | Schema & migrations  |
-| [Testing](docs/TESTING.md)               | Test conventions     |
-| [Tooling](docs/TOOLING.md)               | Git hooks, linting   |
-| [Docker Run](docs/DOCKER_RUN.md)         | Run the app locally  |
-| [Benchmark Harness](benchmark/README.md) | Longitudinal eval    |
-| [Contributing](docs/CONTRIBUTING.md)     | Branch strategy, PRs |
+## What Still Needs Work
 
-## Contributing
+- Improve bot reliability under Google auth and waiting-room edge cases
+- Improve extension-based multi-speaker caption separation
+- Improve audio-to-transcript experimentation beyond raw capture
+- Expand the benchmark dataset beyond the initial scenario pack
+- Add stronger evidence trails and reviewer tooling for why the system marked an
+  item as open, resolved, blocked, or overdue
 
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
+## Documentation Map
 
-### Branch Strategy
+Start here:
 
-- `main`: Production-ready code
-- `develop`: Integration branch
-- `feature/*`: New features
-- `hotfix/*`: Production fixes
+- [docs/README.md](docs/README.md)
 
-### Commit Convention
+Most useful docs:
 
-```
-feat(scope): description
-fix(scope): description
-docs(scope): description
-```
+| Document                                                                             | Purpose                                   |
+| ------------------------------------------------------------------------------------ | ----------------------------------------- |
+| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)                                     | Achievements, limitations, and roadmap    |
+| [docs/REVIEW_GUIDE.md](docs/REVIEW_GUIDE.md)                                         | Best path for professor or reviewer demos |
+| [docs/DOCKER_RUN.md](docs/DOCKER_RUN.md)                                             | How to run the full app locally           |
+| [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)                                           | Environment variable setup                |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                         | System design and data flow               |
+| [docs/TESTING.md](docs/TESTING.md)                                                   | Test strategy and commands                |
+| [benchmark/README.md](benchmark/README.md)                                           | Longitudinal benchmark harness            |
+| [docs/AI_PRODUCT_MANAGER_RESEARCH_PLAN.md](docs/AI_PRODUCT_MANAGER_RESEARCH_PLAN.md) | Product and research thesis               |
+| [docs/PAPER_OUTLINE.md](docs/PAPER_OUTLINE.md)                                       | Research paper outline                    |
 
-Scopes: `shared`, `bot-runner`, `ai-backend`, `ci`, `docs`
+## Packages
 
-## License
+| Package                                                                    | Description                         |
+| -------------------------------------------------------------------------- | ----------------------------------- |
+| [packages/ai-backend/README.md](packages/ai-backend/README.md)             | Backend API and AI pipeline         |
+| [packages/web/README.md](packages/web/README.md)                           | Web dashboard and project workspace |
+| [packages/bot-runner/README.md](packages/bot-runner/README.md)             | Bot capture path                    |
+| [packages/chrome-extension/README.md](packages/chrome-extension/README.md) | Browser capture path                |
+| [packages/shared/README.md](packages/shared/README.md)                     | Shared contracts and schemas        |
 
-Private - All rights reserved
+## Final Note
+
+If you are reviewing this project academically, the strongest way to evaluate it
+is not only by “does it summarize one meeting well?” but by “does it preserve
+continuity across a series of meetings and improve project accountability over
+time?”
