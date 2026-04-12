@@ -61,6 +61,22 @@ See:
 - [scenario schema](./schema/longitudinal-scenario.schema.json)
 - [first scenario](./scenarios/onboarding_growth_initiative/scenario.json)
 
+## Dataset Access
+
+The evaluation dataset used by the benchmark is stored directly in this
+repository under:
+
+- `benchmark/scenarios/onboarding_growth_initiative/`
+
+Main files:
+
+- [scenario.json](./scenarios/onboarding_growth_initiative/scenario.json)
+- [001_week1_kickoff.txt](./scenarios/onboarding_growth_initiative/transcripts/001_week1_kickoff.txt)
+- [002_week2_status.txt](./scenarios/onboarding_growth_initiative/transcripts/002_week2_status.txt)
+- [003_week3_scope_risk.txt](./scenarios/onboarding_growth_initiative/transcripts/003_week3_scope_risk.txt)
+- [004_week4_replan.txt](./scenarios/onboarding_growth_initiative/transcripts/004_week4_replan.txt)
+- [005_week5_launch_readiness.txt](./scenarios/onboarding_growth_initiative/transcripts/005_week5_launch_readiness.txt)
+
 ## Running The Benchmark
 
 ### Current stateful system only

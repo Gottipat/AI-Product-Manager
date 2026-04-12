@@ -185,6 +185,47 @@ OPENAI_API_KEY=sk-your-openai-key
 You can leave the dev-only `JWT_SECRET` and `COOKIE_SECRET` defaults as-is for
 local Docker runs.
 
+## Code And Dataset Access
+
+### Code Access
+
+Repository:
+
+- `GitHub`: `https://github.com/KumarSashank/AI-Product-Manager`
+
+Download options:
+
+- Clone:
+
+```bash
+git clone https://github.com/KumarSashank/AI-Product-Manager.git
+```
+
+- Download ZIP:
+  `https://github.com/KumarSashank/AI-Product-Manager/archive/refs/heads/main.zip`
+
+### Dataset Access
+
+The evaluation dataset used by this project is included in the repository under
+`benchmark/scenarios/`.
+
+Primary benchmark dataset:
+
+- Scenario definition:
+  `benchmark/scenarios/onboarding_growth_initiative/scenario.json`
+- Transcript files:
+  `benchmark/scenarios/onboarding_growth_initiative/transcripts/`
+
+GitHub paths:
+
+- Scenario folder:
+  `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative`
+- Scenario JSON:
+  `https://github.com/KumarSashank/AI-Product-Manager/blob/main/benchmark/scenarios/onboarding_growth_initiative/scenario.json`
+
+See [docs/SUBMISSION_GUIDE.md](docs/SUBMISSION_GUIDE.md) for a submission-ready
+mapping of code, dataset, and benchmark assets.
+
 ## How To Use The App
 
 Recommended walkthrough:
@@ -312,6 +353,7 @@ Most useful docs:
 | ------------------------------------------------------------------------------------ | -------------------------------------- |
 | [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)                                     | Achievements, limitations, and roadmap |
 | [docs/REVIEW_GUIDE.md](docs/REVIEW_GUIDE.md)                                         | Guided walkthrough of the product      |
+| [docs/SUBMISSION_GUIDE.md](docs/SUBMISSION_GUIDE.md)                                 | Code and dataset access for submission |
 | [docs/DOCKER_RUN.md](docs/DOCKER_RUN.md)                                             | How to run the full app locally        |
 | [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)                                           | Environment variable setup             |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                         | System design and data flow            |

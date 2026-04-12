@@ -48,6 +48,7 @@ For research and benchmark work:
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | [PROJECT_STATUS.md](./PROJECT_STATUS.md)                                     | What is working well, what is experimental, and what comes next |
 | [REVIEW_GUIDE.md](./REVIEW_GUIDE.md)                                         | Guided product walkthrough                                      |
+| [SUBMISSION_GUIDE.md](./SUBMISSION_GUIDE.md)                                 | Code and dataset access mapping for submission                  |
 | [DOCKER_RUN.md](./DOCKER_RUN.md)                                             | Full Docker workflow for local setup                            |
 | [ENVIRONMENT.md](./ENVIRONMENT.md)                                           | Environment variable reference                                  |
 | [TESTING.md](./TESTING.md)                                                   | Test commands and testing conventions                           |
