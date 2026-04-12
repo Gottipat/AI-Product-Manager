@@ -9,6 +9,167 @@ This project is not just an AI note taker. The goal is to build an
 open questions and deadlines, and helps teams review delivery continuity over
 time.
 
+## Start Here
+
+If you want the fastest path through the project, use this order:
+
+1. [README.md](README.md)
+2. [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)
+3. [docs/REVIEW_GUIDE.md](docs/REVIEW_GUIDE.md)
+4. [docs/SUBMISSION_GUIDE.md](docs/SUBMISSION_GUIDE.md)
+5. [`benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md`](benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md)
+
+If you only need the essentials:
+
+- `What the project is and how to run it`
+  [README.md](README.md)
+- `What is working and what is still in progress`
+  [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)
+- `Where the code and dataset links are`
+  [docs/SUBMISSION_GUIDE.md](docs/SUBMISSION_GUIDE.md)
+- `How to use the benchmark dataset and read the score`
+  [`benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md`](benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md)
+
+## All-In-One Guide
+
+If you want to share just one link, this README is intended to be enough on its
+own.
+
+### 1. Code Access
+
+- Repository:
+  `https://github.com/KumarSashank/AI-Product-Manager`
+- ZIP download:
+  `https://github.com/KumarSashank/AI-Product-Manager/archive/refs/heads/main.zip`
+
+### 2. Minimum Setup
+
+Prerequisites:
+
+- `Node.js 20+`
+- `pnpm 8+`
+- `Docker Desktop` or Docker Engine with Compose
+- `OPENAI_API_KEY`
+
+Minimal Docker env:
+
+```env
+OPENAI_API_KEY=sk-your-openai-key
+```
+
+Run the application:
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build -d
+```
+
+Open:
+
+- Web app: `http://localhost:3001`
+- API health: `http://localhost:3002/api/v1/health`
+
+### 3. Recommended Product Flow
+
+Use this path for the most reliable walkthrough:
+
+1. Start the app with Docker.
+2. Create a project.
+3. Upload a transcript.
+4. Generate the Minutes of Meeting.
+5. Review extracted items and accountability.
+6. Upload the next transcript into the same project to show continuity.
+
+### 4. Dataset Access
+
+Direct dataset links:
+
+- Scenario folder:
+  `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative`
+- Transcripts folder:
+  `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative/transcripts`
+- Scenario JSON:
+  `https://github.com/KumarSashank/AI-Product-Manager/blob/main/benchmark/scenarios/onboarding_growth_initiative/scenario.json`
+
+The benchmark transcript files are:
+
+1. `001_week1_kickoff.txt`
+2. `002_week2_status.txt`
+3. `003_week3_scope_risk.txt`
+4. `004_week4_replan.txt`
+5. `005_week5_launch_readiness.txt`
+
+### 5. How To Use The Dataset
+
+Benchmark typecheck:
+
+```bash
+pnpm benchmark:typecheck
+```
+
+Run our stateful method:
+
+```bash
+pnpm benchmark:longitudinal -- benchmark/scenarios/onboarding_growth_initiative/scenario.json
+```
+
+Run the normal baseline:
+
+```bash
+pnpm benchmark:longitudinal -- --system transcript_only benchmark/scenarios/onboarding_growth_initiative/scenario.json
+```
+
+Compare both methods:
+
+```bash
+pnpm benchmark:compare
+```
+
+### 6. Where To Find The Score
+
+Benchmark reports are written to:
+
+- Host runs:
+  `benchmark/reports/`
+- Docker backend container runs:
+  `/app/benchmark/reports/`
+
+### 7. How To Read The Result
+
+The benchmark compares:
+
+- `current_system`
+  Our method with project memory and accountability carry-forward
+- `transcript_only`
+  The normal baseline without prior project memory
+
+Expected result for the built-in scenario:
+
+- `current_system`: `38 passed / 0 failed`
+- `transcript_only`: `32 passed / 6 failed`
+
+Interpretation:
+
+- higher `passed` is better
+- lower `failed` is better
+- if `transcript_only` matches or beats `current_system`, that means the
+  longitudinal reasoning has regressed
+
+### 8. Current Product Maturity
+
+Most reliable:
+
+- transcript upload
+- contextual MoM generation
+- project-level action items
+- benchmark evaluation
+
+Still in progress:
+
+- bot-based meeting joining reliability
+- Chrome extension multi-speaker transcript attribution
+- audio transcription experimentation
+
 ## What This Project Does
 
 The system supports three capture paths:
@@ -220,11 +381,15 @@ GitHub paths:
 
 - Scenario folder:
   `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative`
+- Transcripts folder:
+  `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative/transcripts`
 - Scenario JSON:
   `https://github.com/KumarSashank/AI-Product-Manager/blob/main/benchmark/scenarios/onboarding_growth_initiative/scenario.json`
 
 See [docs/SUBMISSION_GUIDE.md](docs/SUBMISSION_GUIDE.md) for a submission-ready
-mapping of code, dataset, and benchmark assets.
+mapping of code, dataset, and benchmark assets, and
+[`benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md`](benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md)
+for a short dataset walkthrough.
 
 ## How To Use The App
 
@@ -349,18 +514,19 @@ Start here:
 
 Most useful docs:
 
-| Document                                                                             | Purpose                                |
-| ------------------------------------------------------------------------------------ | -------------------------------------- |
-| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)                                     | Achievements, limitations, and roadmap |
-| [docs/REVIEW_GUIDE.md](docs/REVIEW_GUIDE.md)                                         | Guided walkthrough of the product      |
-| [docs/SUBMISSION_GUIDE.md](docs/SUBMISSION_GUIDE.md)                                 | Code and dataset access for submission |
-| [docs/DOCKER_RUN.md](docs/DOCKER_RUN.md)                                             | How to run the full app locally        |
-| [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)                                           | Environment variable setup             |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                         | System design and data flow            |
-| [docs/TESTING.md](docs/TESTING.md)                                                   | Test strategy and commands             |
-| [benchmark/README.md](benchmark/README.md)                                           | Longitudinal benchmark harness         |
-| [docs/AI_PRODUCT_MANAGER_RESEARCH_PLAN.md](docs/AI_PRODUCT_MANAGER_RESEARCH_PLAN.md) | Product and research thesis            |
-| [docs/PAPER_OUTLINE.md](docs/PAPER_OUTLINE.md)                                       | Research paper outline                 |
+| Document                                                                                                                                         | Purpose                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)                                                                                                 | Achievements, limitations, and roadmap |
+| [docs/REVIEW_GUIDE.md](docs/REVIEW_GUIDE.md)                                                                                                     | Guided walkthrough of the product      |
+| [docs/SUBMISSION_GUIDE.md](docs/SUBMISSION_GUIDE.md)                                                                                             | Code and dataset access for submission |
+| [benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md](benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md) | How to use the benchmark dataset       |
+| [docs/DOCKER_RUN.md](docs/DOCKER_RUN.md)                                                                                                         | How to run the full app locally        |
+| [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)                                                                                                       | Environment variable setup             |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                                                                                     | System design and data flow            |
+| [docs/TESTING.md](docs/TESTING.md)                                                                                                               | Test strategy and commands             |
+| [benchmark/README.md](benchmark/README.md)                                                                                                       | Longitudinal benchmark harness         |
+| [docs/AI_PRODUCT_MANAGER_RESEARCH_PLAN.md](docs/AI_PRODUCT_MANAGER_RESEARCH_PLAN.md)                                                             | Product and research thesis            |
+| [docs/PAPER_OUTLINE.md](docs/PAPER_OUTLINE.md)                                                                                                   | Research paper outline                 |
 
 ## Packages
 

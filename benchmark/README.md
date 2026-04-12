@@ -71,11 +71,16 @@ repository under:
 Main files:
 
 - [scenario.json](./scenarios/onboarding_growth_initiative/scenario.json)
+- [transcripts folder](./scenarios/onboarding_growth_initiative/transcripts)
 - [001_week1_kickoff.txt](./scenarios/onboarding_growth_initiative/transcripts/001_week1_kickoff.txt)
 - [002_week2_status.txt](./scenarios/onboarding_growth_initiative/transcripts/002_week2_status.txt)
 - [003_week3_scope_risk.txt](./scenarios/onboarding_growth_initiative/transcripts/003_week3_scope_risk.txt)
 - [004_week4_replan.txt](./scenarios/onboarding_growth_initiative/transcripts/004_week4_replan.txt)
 - [005_week5_launch_readiness.txt](./scenarios/onboarding_growth_initiative/transcripts/005_week5_launch_readiness.txt)
+
+Short usage guide:
+
+- [./scenarios/onboarding_growth_initiative/transcripts/README.md](./scenarios/onboarding_growth_initiative/transcripts/README.md)
 
 ## Running The Benchmark
 

@@ -48,6 +48,8 @@ GitHub links:
 
 - Scenario folder:
   `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative`
+- Transcripts folder:
+  `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative/transcripts`
 - Scenario JSON:
   `https://github.com/KumarSashank/AI-Product-Manager/blob/main/benchmark/scenarios/onboarding_growth_initiative/scenario.json`
 
@@ -111,6 +113,7 @@ pnpm benchmark:compare
 More detail:
 
 - [../benchmark/README.md](../benchmark/README.md)
+- [../benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md](../benchmark/scenarios/onboarding_growth_initiative/transcripts/README.md)
 - [EVAL_RUBRIC.md](./EVAL_RUBRIC.md)
 
 ## Expected Evaluation Result
@@ -131,9 +134,10 @@ If a submission portal requires links, the clean set is:
 1. Code repository link
 2. ZIP download link for the repository
 3. Dataset folder link
-4. Scenario JSON link
-5. README link
-6. Benchmark documentation link
+4. Transcripts folder link
+5. Scenario JSON link
+6. README link
+7. Benchmark documentation link
 
 Useful references:
 
@@ -143,5 +147,7 @@ Useful references:
   `https://github.com/KumarSashank/AI-Product-Manager/archive/refs/heads/main.zip`
 - Dataset folder:
   `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative`
+- Transcripts folder:
+  `https://github.com/KumarSashank/AI-Product-Manager/tree/main/benchmark/scenarios/onboarding_growth_initiative/transcripts`
 - README:
   `https://github.com/KumarSashank/AI-Product-Manager/blob/main/README.md`
