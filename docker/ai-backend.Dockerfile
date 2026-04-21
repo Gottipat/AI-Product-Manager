@@ -20,4 +20,4 @@ RUN pnpm --filter @meeting-ai/ai-backend build
 
 EXPOSE 3002
 
-CMD ["sh", "-c", "pnpm --filter @meeting-ai/ai-backend db:push && pnpm --filter @meeting-ai/ai-backend db:bootstrap && PORT=${PORT:-3002} pnpm --filter @meeting-ai/ai-backend start"]
+CMD ["sh", "-c", "pnpm --filter @meeting-ai/ai-backend exec drizzle-kit push --force && pnpm --filter @meeting-ai/ai-backend db:bootstrap && PORT=${PORT:-3002} pnpm --filter @meeting-ai/ai-backend start"]
