@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: meeting-ai-backend
+    env: docker
+    dockerfilePath: docker/ai-backend.Dockerfile
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: meeting-ai-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3002
+      - key: JWT_SECRET
+        generateValue: true
+      - key: COOKIE_SECRET
+        generateValue: true
+
+  - type: worker
+    name: meeting-ai-bot-runner
+    env: docker
+    dockerfilePath: docker/bot-runner.Dockerfile
+    plan: free
+    envVars:
+      - key: AI_BACKEND_URL
+        value: "https://meeting-ai-backend.onrender.com"
+      - key: HEADLESS
+        value: "true"
+      - key: MEET_LINK
+        sync: false 
+      - key: GOOGLE_EMAIL
+        sync: false
+      - key: GOOGLE_PASSWORD
+        sync: false
+      - key: BOT_DISPLAY_NAME
+        value: "Meeting AI Bot"
+
+databases:
+  - name: meeting-ai-db
+    plan: free
