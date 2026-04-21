@@ -22,25 +22,6 @@ services:
       - key: COOKIE_SECRET
         generateValue: true
 
-  - type: worker
-    name: meeting-ai-bot-runner
-    env: docker
-    dockerfilePath: docker/bot-runner.Dockerfile
-    plan: free
-    envVars:
-      - key: AI_BACKEND_URL
-        value: "https://meeting-ai-backend.onrender.com"
-      - key: HEADLESS
-        value: "true"
-      - key: MEET_LINK
-        sync: false 
-      - key: GOOGLE_EMAIL
-        sync: false
-      - key: GOOGLE_PASSWORD
-        sync: false
-      - key: BOT_DISPLAY_NAME
-        value: "Meeting AI Bot"
-
 databases:
   - name: meeting-ai-db
     plan: free
